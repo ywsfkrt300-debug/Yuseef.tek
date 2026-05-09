@@ -1,11 +1,6 @@
-@import "tailwindcss";
-@custom-variant dark (&:is(.dark, .dark *));
-
-@theme {
-  --font-sans: "Cairo", ui-sans-serif, system-ui, sans-serif;
-  --font-en: "Poppins", ui-sans-serif, system-ui, sans-serif;
-  --radius-xl: 16px;
-}
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
 @layer base {
   html {
