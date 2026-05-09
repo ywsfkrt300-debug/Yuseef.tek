@@ -249,7 +249,7 @@ export function UserDashboard() {
       
       setTimeout(async () => {
         await signOut(auth);
-        navigate("/login");
+        navigate("/auth");
       }, 2000);
     } catch (error: any) {
       if (error.code === 'auth/wrong-password') {
@@ -857,7 +857,7 @@ export function UserDashboard() {
                                           <p className="text-xs text-slate-500 max-w-md">قم برفع صور مستنداتك الرسمية لتوثيق حسابك وزيادة الأمان والحصول على صلاحيات الوكلاء.</p>
                                        </div>
                                        <button 
-                                          onClick={() => navigate("/dashboard?tab=verification_form")}
+                                          onClick={() => handleTabChange("verification_form")}
                                           className="bg-indigo-50 dark:bg-indigo-500/10 text-indigo-500 hover:bg-indigo-100 px-6 py-3 rounded-2xl font-bold text-sm transition-all"
                                        >
                                           ابدأ التوثيق الآن

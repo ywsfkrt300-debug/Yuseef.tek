@@ -36,6 +36,20 @@ function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
   const [settingsLoading, setSettingsLoading] = useState(true);
+  const [userRole, setUserRole] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (user) {
+      const unsubscribe = onSnapshot(doc(db, "users", user.uid), (snapshot) => {
+        if (snapshot.exists()) {
+          setUserRole(snapshot.data().role || "user");
+        }
+      });
+      return () => unsubscribe();
+    } else {
+      setUserRole(null);
+    }
+  }, [user]);
 
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "settings", "global"), (snapshot) => {
@@ -49,7 +63,7 @@ function AppContent() {
     return () => unsubscribe();
   }, []);
 
-  const isAdmin = user?.email === 'yuseef.syrai098@gmail.com' || user?.email === 'ywsfkrt300@gmail.com';
+  const isAdmin = userRole === 'admin' || user?.email?.toLowerCase() === 'yuseef.syrai098@gmail.com' || user?.email?.toLowerCase() === 'ywsfkrt300@gmail.com';
 
   if (authLoading || settingsLoading) {
     return (
