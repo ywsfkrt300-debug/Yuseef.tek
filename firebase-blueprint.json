@@ -33,6 +33,51 @@
       },
       "required": ["userId", "idFrontUrl", "status", "createdAt", "updatedAt"]
     },
+    "category": {
+      "title": "Category",
+      "description": "Category for grouping services",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "icon": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "isActive", "createdAt", "updatedAt"]
+    },
+    "paymentMethod": {
+      "title": "Payment Method",
+      "description": "Admin defined payment methods for users to top up",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "code": { "type": "string" },
+        "qrCodeUrl": { "type": "string" },
+        "note": { "type": "string" },
+        "icon": { "type": "string" },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "isActive", "createdAt", "updatedAt"]
+    },
+    "deposit": {
+      "title": "Deposit",
+      "description": "User request to top up wallet balance",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethodId": { "type": "string" },
+        "proofImageUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "adminComment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "amount", "status", "createdAt", "updatedAt"]
+    },
     "service": {
       "title": "Service",
       "description": "Available financial service/product",
@@ -115,10 +160,6 @@
       "schema": { "$ref": "#/entities/service" },
       "description": "List of available services managed by admins"
     },
-    "/users/{userId}/saved_services/{savedServiceId}": {
-      "schema": { "$ref": "#/entities/saved_service" },
-      "description": "Quick access services saved by user"
-    },
     "/transactions/{transactionId}": {
       "schema": { "$ref": "#/entities/transaction" },
       "description": "Records of payment transactions"
@@ -130,6 +171,22 @@
     "/verifications/{verificationId}": {
       "schema": { "$ref": "#/entities/verification" },
       "description": "Identity verification requests"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/category" },
+      "description": "Service categories"
+    },
+    "/savedServices/{savedServiceId}": {
+      "schema": { "$ref": "#/entities/saved_service" },
+      "description": "Quick access services saved by user"
+    },
+    "/paymentMethods/{paymentMethodId}": {
+      "schema": { "$ref": "#/entities/paymentMethod" },
+      "description": "Available payment methods"
+    },
+    "/deposits/{depositId}": {
+      "schema": { "$ref": "#/entities/deposit" },
+      "description": "Wallet top-up requests"
     }
   }
 }

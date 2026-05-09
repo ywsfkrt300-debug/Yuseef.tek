@@ -2,9 +2,10 @@ import { useState, useEffect } from "react";
 import React from "react";
 import { Check, ChevronLeft, Image as ImageIcon, Plus, Trash2, X, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
-import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp, deleteDoc, collection, query, onSnapshot } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { useNavigate, useParams } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 export function AdminServiceEdit() {
   const { id } = useParams();
@@ -21,9 +22,18 @@ export function AdminServiceEdit() {
   const [imageUrl, setImageUrl] = useState("");
   const [iconType, setIconType] = useState("wifi");
   const [iconColor, setIconColor] = useState("indigo");
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
   const [fields, setFields] = useState<{name: string, label: string, type: 'text' | 'password' | 'number', required: boolean}[]>([]);
 
   useEffect(() => {
+    const qCats = query(collection(db, "categories"));
+    onSnapshot(qCats, (snapshot) => {
+      const cats: any[] = [];
+      snapshot.forEach(doc => cats.push({ id: doc.id, ...doc.data() }));
+      setCategories(cats);
+    });
+
     async function fetchService() {
       if (!id) return;
       try {
@@ -36,6 +46,7 @@ export function AdminServiceEdit() {
           setPrice(data.price?.toString() || "");
           setImageUrl(data.imageUrl || "");
           setIconType(data.iconType || "wifi");
+          setCategoryId(data.categoryId || "");
           setFields(data.fields || []);
           
           // Detect color from class names if possible
@@ -55,16 +66,45 @@ export function AdminServiceEdit() {
     fetchService();
   }, [id]);
 
+  const compressImage = (base64Str: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 500;
+        const MAX_HEIGHT = 500;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+    });
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 200 * 1024) {
-        alert("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 200 كيلوبايت.");
-        return;
-      }
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageUrl(reader.result as string);
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const compressed = await compressImage(base64);
+        setImageUrl(compressed);
       };
       reader.readAsDataURL(file);
     }
@@ -94,6 +134,7 @@ export function AdminServiceEdit() {
     setLoading(true);
     try {
       await deleteDoc(doc(db, "services", id));
+      toast.success("تم حذف الخدمة بنجاح!");
       navigate("/admin/services");
     } catch (error) {
       handleFirestoreError(error, OperationType.DELETE, "services");
@@ -126,9 +167,11 @@ export function AdminServiceEdit() {
         iconType,
         iconBgClass: theme.bg,
         iconTextClass: theme.text,
+        categoryId,
         fields,
         updatedAt: serverTimestamp()
       });
+      toast.success("تم تحديث بيانات الخدمة!");
       navigate("/admin/services");
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, "services");
@@ -207,6 +250,15 @@ export function AdminServiceEdit() {
             <div>
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">اسم الخدمة</label>
               <input value={name} onChange={e => setName(e.target.value)} type="text" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" placeholder="مثال: باقة إنترنت 50GB" />
+            </div>
+            <div>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">التصنيف</label>
+              <select value={categoryId} onChange={(e) => setCategoryId(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500">
+                <option value="">اختر تصنيفاً</option>
+                {categories.map(cat => (
+                  <option key={cat.id} value={cat.id}>{cat.name}</option>
+                ))}
+              </select>
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>

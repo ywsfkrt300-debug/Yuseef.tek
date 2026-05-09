@@ -2,9 +2,10 @@ import { useState } from "react";
 import React from "react";
 import { Check, ChevronLeft, GripVertical, Image, Plus, Trash2, X } from "lucide-react";
 import { motion } from "motion/react";
-import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { collection, doc, setDoc, serverTimestamp, onSnapshot, query } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 export function AdminServiceAdd() {
   const [step, setStep] = useState(1);
@@ -14,6 +15,8 @@ export function AdminServiceAdd() {
   // Form State
   const [name, setName] = useState("");
   const [company, setCompany] = useState("سيريا تيل");
+  const [categoryId, setCategoryId] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
   const [priceType, setPriceType] = useState<"fixed" | "dynamic">("fixed");
   const [price, setPrice] = useState<string>("");
   const [imageUrl, setImageUrl] = useState("");
@@ -21,17 +24,55 @@ export function AdminServiceAdd() {
   const [iconColor, setIconColor] = useState("indigo");
   const [imageFile, setImageFile] = useState<File | null>(null);
 
+  React.useEffect(() => {
+    onSnapshot(collection(db, "categories"), (snap) => {
+      const cats: any[] = [];
+      snap.forEach(d => cats.push({ id: d.id, ...d.data() }));
+      setCategories(cats);
+    });
+  }, []);
+
+  const compressImage = (base64Str: string): Promise<string> => {
+    return new Promise((resolve) => {
+      const img = new Image();
+      img.src = base64Str;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const MAX_WIDTH = 500;
+        const MAX_HEIGHT = 500;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0, width, height);
+        // ضغط بجودة 0.6 لتقليل الحجم بشكل كبير لصور الخدمات
+        resolve(canvas.toDataURL('image/jpeg', 0.6));
+      };
+    });
+  };
+
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 200 * 1024) { // Limit to 200KB for Base64 storage
-        alert("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 200 كيلوبايت.");
-        return;
-      }
       setImageFile(file);
       const reader = new FileReader();
-      reader.onloadend = () => {
-        setImageUrl(reader.result as string);
+      reader.onloadend = async () => {
+        const base64 = reader.result as string;
+        const compressed = await compressImage(base64);
+        setImageUrl(compressed);
       };
       reader.readAsDataURL(file);
     }
@@ -64,6 +105,13 @@ export function AdminServiceAdd() {
   const handleSave = async () => {
     setLoading(true);
     try {
+      if (!name || !company || !categoryId) {
+        toast.error("يرجى ملء جميع الحقول الأساسية وتحديد التصنيف");
+        setStep(1);
+        setLoading(false);
+        return;
+      }
+
       const colorMap: Record<string, { bg: string, text: string }> = {
         indigo: { bg: "bg-indigo-50 dark:bg-indigo-500/10", text: "text-indigo-500" },
         blue: { bg: "bg-blue-50 dark:bg-blue-500/10", text: "text-blue-500" },
@@ -83,6 +131,7 @@ export function AdminServiceAdd() {
         dynamicPrice: priceType === "dynamic",
         imageUrl,
         iconType,
+        categoryId,
         iconBgClass: theme.bg,
         iconTextClass: theme.text,
         fields,
@@ -90,6 +139,7 @@ export function AdminServiceAdd() {
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+      toast.success("تم إنشاء الخدمة بنجاح!");
       navigate("/admin/services");
     } catch (error) {
       handleFirestoreError(error, OperationType.CREATE, "services");

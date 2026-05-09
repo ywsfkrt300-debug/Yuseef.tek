@@ -1,6 +1,9 @@
+import { useState, useEffect } from "react";
 import { motion } from "motion/react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { Search, Zap, Phone, Wifi, Droplet, CheckCircle2, ChevronLeft } from "lucide-react";
+import { collection, query, where, onSnapshot } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { useAuth } from "../contexts/AuthContext";
 import { useServices } from "../hooks/useServices";
 import { useTransactions } from "../hooks/useTransactions";
@@ -12,7 +15,32 @@ export function Home() {
   const { services, loading } = useServices(true);
   const { transactions, loading: loadingTx } = useTransactions(4);
 
-  const quickActions = services.slice(0, 4);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [categories, setCategories] = useState<any[]>([]);
+  const [selectedCategory, setSelectedCategory] = useState("all");
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    const qCats = query(collection(db, "categories"), where("isActive", "==", true));
+    const unsubscribe = onSnapshot(qCats, (snapshot) => {
+      const cats: any[] = [];
+      snapshot.forEach(doc => cats.push({ id: doc.id, ...doc.data() }));
+      setCategories(cats);
+    }, (error) => {
+      // Non-critical background list, just log or silent
+      console.error("Categories fetch error:", error);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const filteredServices = services.filter(service => {
+    const matchesSearch = service.name.toLowerCase().includes(searchQuery.toLowerCase()) || 
+                          service.company.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesCategory = selectedCategory === "all" || service.categoryId === selectedCategory;
+    return matchesSearch && matchesCategory;
+  });
+
+  const quickActions = filteredServices.slice(0, 4);
 
   return (
     <div className="flex flex-col w-full overflow-hidden">
@@ -47,19 +75,47 @@ export function Home() {
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ delay: 0.2 }}
-            className="relative flex items-center mb-10 max-w-xl"
+            className="relative flex flex-col gap-6 mb-10 max-w-xl"
           >
-            <input 
-              type="text" 
-              placeholder="اكتب اسم الخدمة أو الشركة..."
-              className="w-full h-16 pr-14 pl-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-900 dark:text-white"
-            />
-            <div className="absolute right-5 text-slate-400">
-              <Search className="w-6 h-6" />
+            <div className="relative flex items-center">
+              <input 
+                type="text" 
+                placeholder="اكتب اسم الخدمة أو الشركة..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full h-16 pr-14 pl-6 rounded-2xl bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 transition-all font-medium text-slate-900 dark:text-white"
+              />
+              <div className="absolute right-5 text-slate-400">
+                <Search className="w-6 h-6" />
+              </div>
             </div>
-            <button className="absolute left-2 top-2 bottom-2 bg-gradient-to-r from-indigo-500 to-purple-500 text-white px-6 rounded-xl font-bold hover:shadow-lg transition-all hidden sm:block">
-              بحث
-            </button>
+
+            {/* Category Filter */}
+            <div className="flex items-center gap-3 overflow-x-auto pb-2 scrollbar-hide">
+               <button 
+                 onClick={() => setSelectedCategory("all")}
+                 className={`px-6 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap border shrink-0 ${
+                   selectedCategory === "all" 
+                   ? "bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/20" 
+                   : "bg-white dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700 hover:border-indigo-500"
+                 }`}
+               >
+                 الكل
+               </button>
+               {categories.map(cat => (
+                 <button 
+                   key={cat.id}
+                   onClick={() => setSelectedCategory(cat.id)}
+                   className={`px-6 py-2.5 rounded-xl font-bold transition-all whitespace-nowrap border shrink-0 ${
+                     selectedCategory === cat.id 
+                     ? "bg-indigo-500 text-white border-indigo-500 shadow-lg shadow-indigo-500/20" 
+                     : "bg-white dark:bg-slate-800 text-slate-500 border-slate-100 dark:border-slate-700 hover:border-indigo-500"
+                   }`}
+                 >
+                   {cat.name}
+                 </button>
+               ))}
+            </div>
           </motion.div>
 
           {!isLogged && (
@@ -138,10 +194,10 @@ export function Home() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
             {loading ? (
               <div className="col-span-full text-center py-12 text-slate-500">جاري تحميل الخدمات...</div>
-            ) : services.length === 0 ? (
-              <div className="col-span-full text-center py-12 text-slate-500">لا توجد خدمات متاحة حالياً.</div>
+            ) : filteredServices.length === 0 ? (
+              <div className="col-span-full text-center py-12 text-slate-500">لا توجد خدمات تطابق بحثك.</div>
             ) : (
-              services.map((service) => (
+              filteredServices.map((service) => (
                 <motion.div 
                   key={service.id}
                   whileHover={{ y: -4 }}

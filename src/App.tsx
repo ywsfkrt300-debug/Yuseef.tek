@@ -1,10 +1,12 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
 import { ThemeProvider } from "./contexts/ThemeContext";
 import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { LanguageProvider } from "./contexts/LanguageContext";
 import { useState, useEffect } from "react";
 import { doc, onSnapshot } from "firebase/firestore";
 import { db } from "./lib/firebase";
 import { AlertTriangle, Loader2 } from "lucide-react";
+import { Toaster } from "react-hot-toast";
 
 // Layouts
 import { MainLayout } from "./components/layout/MainLayout";
@@ -23,6 +25,9 @@ import { AdminServiceEdit } from "./pages/AdminServiceEdit";
 import { AdminUsers } from "./pages/AdminUsers";
 import { AdminTransactions } from "./pages/AdminTransactions";
 import { AdminVerifications } from "./pages/AdminVerifications";
+import { AdminCategories } from "./pages/AdminCategories";
+import { AdminPaymentMethods } from "./pages/AdminPaymentMethods";
+import { AdminDeposits } from "./pages/AdminDeposits";
 import { AdminSettings } from "./pages/AdminSettings";
 import { Terms } from "./pages/Terms";
 import { Privacy } from "./pages/Privacy";
@@ -94,7 +99,10 @@ function AppContent() {
           <Route path="services/new" element={<AdminServiceAdd />} />
           <Route path="services/edit/:id" element={<AdminServiceEdit />} />
           <Route path="users" element={<AdminUsers />} />
+          <Route path="categories" element={<AdminCategories />} />
           <Route path="verifications" element={<AdminVerifications />} />
+          <Route path="payment-methods" element={<AdminPaymentMethods />} />
+          <Route path="deposits" element={<AdminDeposits />} />
           <Route path="transactions" element={<AdminTransactions />} />
           <Route path="settings" element={<AdminSettings />} />
         </Route>
@@ -111,9 +119,12 @@ function AppContent() {
 export default function App() {
   return (
     <ThemeProvider defaultTheme="light" storageKey="app-ui-theme">
-      <AuthProvider>
-        <AppContent />
-      </AuthProvider>
+      <LanguageProvider>
+        <AuthProvider>
+          <AppContent />
+          <Toaster position="top-center" reverseOrder={false} />
+        </AuthProvider>
+      </LanguageProvider>
     </ThemeProvider>
   );
 }

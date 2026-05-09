@@ -3,6 +3,7 @@ import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, getDoc 
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Shield, Check, X, Clock, AlertCircle, Eye, User, Image as FileImage } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { toast } from "react-hot-toast";
 
 export function AdminVerifications() {
   const [verifications, setVerifications] = useState<any[]>([]);
@@ -65,6 +66,7 @@ export function AdminVerifications() {
         updatedAt: serverTimestamp()
       });
 
+      toast.success(status === "verified" ? "تم قبول طلب التوثيق" : "تم رفض طلب التوثيق");
       setSelectedVerif(null);
     } catch (error) {
       handleFirestoreError(error, OperationType.UPDATE, "verifications");

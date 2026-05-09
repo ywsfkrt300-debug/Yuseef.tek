@@ -1,7 +1,8 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithPopup, GoogleAuthProvider, signOut, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc, onSnapshot, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, getDoc, collection, getDocs, updateDoc, onSnapshot, serverTimestamp, deleteDoc } from 'firebase/firestore';
 import firebaseConfig from '../../firebase-applet-config.json';
+import { toast } from 'react-hot-toast';
 
 const app = initializeApp(firebaseConfig);
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId);
@@ -34,8 +35,10 @@ interface FirestoreErrorInfo {
 }
 
 export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errMessage = error instanceof Error ? error.message : String(error);
+  
   const errInfo: FirestoreErrorInfo = {
-    error: error instanceof Error ? error.message : String(error),
+    error: errMessage,
     authInfo: {
       userId: auth.currentUser?.uid,
       email: auth.currentUser?.email,
@@ -50,6 +53,22 @@ export function handleFirestoreError(error: unknown, operationType: OperationTyp
     operationType,
     path
   };
+
+  // User-friendly mapping
+  let displayMessage = "حدث خطأ أثناء الاتصال بالقاعدة.";
+  if (errMessage.includes("insufficient permissions")) {
+    displayMessage = "ليس لديك صلاحية للقيام بهذا الإجراء.";
+  } else if (errMessage.includes("quota exceeded")) {
+    displayMessage = "تم تجاوز حصة الاستخدام المتاحة اليوم.";
+  } else if (errMessage.includes("network-request-failed")) {
+    displayMessage = "يرجى التحقق من اتصال الإنترنت الخاص بك.";
+  }
+
+  toast.error(displayMessage, {
+    duration: 5000,
+    id: `firestore-err-${operationType}-${path}` // Prevent duplicates
+  });
+
   console.error('Firestore Error: ', JSON.stringify(errInfo));
   throw new Error(JSON.stringify(errInfo));
 }

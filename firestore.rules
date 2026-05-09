@@ -136,7 +136,7 @@ service cloud.firestore {
     // ============================================
     match /transactions/{txId} {
       allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
-      allow list: if isSignedIn() && isAdmin();
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
       
       allow create: if isSignedIn() && 
                      incoming().userId == request.auth.uid;
@@ -145,6 +145,15 @@ service cloud.firestore {
       allow delete: if false;
     }
     
+    // ============================================
+    // جدول الخدمات المحفوظة (Saved Services)
+    // ============================================
+    match /savedServices/{savedId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update, delete: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+    }
+
     // ============================================
     // جدول الإشعارات (Notifications)
     // ============================================
@@ -160,6 +169,62 @@ service cloud.firestore {
     match /settings/{docId} {
       allow read: if true;
       allow write: if isAdmin();
+    }
+
+    // ============================================
+    // جدول التصنيفات (Categories)
+    // ============================================
+    match /categories/{categoryId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ============================================
+    // جدول طرق الدفع (Payment Methods)
+    // ============================================
+    match /paymentMethods/{methodId} {
+      allow read: if true;
+      allow write: if isAdmin();
+    }
+
+    // ============================================
+    // جدول طلبات الشحن (Deposits)
+    // ============================================
+    match /deposits/{depositId} {
+       // قراءة: صاحب الطلب أو مشرف
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      // قائمة: صاحب الطلب أو مشرف
+      allow list: if isSignedIn() && (isAdmin() || resource.data.userId == request.auth.uid);
+      // إنشاء: المستخدم نفسه
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      // تحديث: المشرف فقط
+      allow update: if isAdmin();
+      // حذف: المشرف فقط
+      allow delete: if isAdmin();
+    }
+
+    // ============================================
+    // الإشعارات (Notifications)
+    // ============================================
+    match /notifications/{notificationId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || resource.data.userId == "all");
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ============================================
+    // جدول تذاكر الدعم (Support Tickets)
+    // ============================================
+    match /supportTickets/{ticketId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() && incoming().userId == request.auth.uid;
+      allow update: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow delete: if isAdmin();
+
+      match /messages/{messageId} {
+        allow read: if isSignedIn() && (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || isAdmin());
+        allow create: if isSignedIn() && (get(/databases/$(database)/documents/supportTickets/$(ticketId)).data.userId == request.auth.uid || isAdmin());
+      }
     }
   }
 }

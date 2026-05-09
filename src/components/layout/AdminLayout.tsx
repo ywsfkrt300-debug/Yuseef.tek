@@ -85,8 +85,11 @@ export function AdminLayout() {
   const links = [
     { name: "الرئيسية", path: "/admin", icon: <Home size={20} /> },
     { name: "الخدمات", path: "/admin/services", icon: <PlusCircle size={20} /> },
+    { name: "التصنيفات", path: "/admin/categories", icon: <LayoutTemplate size={20} /> },
     { name: "المستخدمون", path: "/admin/users", icon: <Users size={20} /> },
     { name: "طلبات التوثيق", path: "/admin/verifications", icon: <Shield size={20} /> },
+    { name: "طرق الدفع", path: "/admin/payment-methods", icon: <CreditCard size={20} /> },
+    { name: "طلبات الشحن", path: "/admin/deposits", icon: <Briefcase size={20} /> },
     { name: "العمليات المالية", path: "/admin/transactions", icon: <CreditCard size={20} /> },
     { name: "إعدادات", path: "/admin/settings", icon: <Settings size={20} /> },
   ];

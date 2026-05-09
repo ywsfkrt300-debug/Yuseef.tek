@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Save, Globe, MessageSquare, Facebook, Twitter, Instagram, Github, Youtube, Share2, AlertCircle, Loader2, Link as LinkIcon, Plus, Trash2, Check, FileText } from "lucide-react";
 import { motion } from "motion/react";
 import { doc, getDoc, setDoc, serverTimestamp } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
+import { toast } from "react-hot-toast";
 
 interface SocialLink {
   platform: string;
@@ -20,6 +21,8 @@ export function AdminSettings() {
   const [terms, setTerms] = useState("");
   const [privacy, setPrivacy] = useState("");
 
+  const [logoUrl, setLogoUrl] = useState("");
+
   useEffect(() => {
     async function fetchSettings() {
       try {
@@ -31,6 +34,7 @@ export function AdminSettings() {
           setSocialLinks(data.socialLinks || []);
           setTerms(data.terms || "");
           setPrivacy(data.privacy || "");
+          setLogoUrl(data.logoUrl || "");
         }
       } catch (error) {
         handleFirestoreError(error, OperationType.GET, "settings");
@@ -51,14 +55,27 @@ export function AdminSettings() {
         socialLinks,
         terms,
         privacy,
+        logoUrl,
         updatedAt: serverTimestamp()
       });
+      toast.success("تم حفظ الإعدادات بنجاح");
       setMessage("تم حفظ الإعدادات بنجاح");
       setTimeout(() => setMessage(""), 3000);
     } catch (error) {
       handleFirestoreError(error, OperationType.WRITE, "settings");
     } finally {
       setSaving(false);
+    }
+  };
+
+  const handleLogoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setLogoUrl(reader.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -130,6 +147,22 @@ export function AdminSettings() {
           </h3>
           
           <div className="space-y-4">
+            <div>
+               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">شعار الموقع (Logo)</label>
+               <div className="flex items-center gap-4">
+                  <div className="w-16 h-16 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl flex items-center justify-center overflow-hidden">
+                     {logoUrl ? <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" /> : <Plus size={20} className="text-slate-400" />}
+                  </div>
+                  <label className="bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 px-4 py-2 rounded-lg text-sm font-bold cursor-pointer hover:bg-slate-50 transition-colors">
+                     رفع شعار جديد
+                     <input type="file" accept="image/*" className="hidden" onChange={handleLogoUpload} />
+                  </label>
+                  {logoUrl && (
+                    <button onClick={() => setLogoUrl("")} className="text-red-500 text-xs font-bold">حذف</button>
+                  )}
+               </div>
+            </div>
+
             <div>
               <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">اسم التطبيق</label>
               <input value={appName} onChange={e => setAppName(e.target.value)} type="text" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />

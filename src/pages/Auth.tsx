@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { motion } from "motion/react";
 import { X, Phone, Lock, User as UserIcon, Calendar, MapPin } from "lucide-react";
 import { useAuth } from "../contexts/AuthContext";
+import { toast } from "react-hot-toast";
 
 const GOVERNORATES = [
   "دمشق",
@@ -62,6 +63,7 @@ export function Auth() {
         const identifier = formData.email || formData.phone;
         if (!identifier) throw new Error("يرجى إدخال البريد الإلكتروني أو رقم الهاتف");
         await login(identifier, formData.password);
+        toast.success("تم تسجيل الدخول بنجاح!");
       } else {
         if (!formData.displayName || !formData.email || !formData.phone || !formData.password) {
           throw new Error("يرجى ملء جميع الحقول المطلوبة");
@@ -77,10 +79,13 @@ export function Auth() {
           formData.birthDate || "",
           formData.governorate || ""
         );
+        toast.success("تم إنشاء الحساب بنجاح!");
       }
     } catch (err: any) {
        console.error(err);
-       setErrorMsg(err.message || "حدث خطأ ما. تأكد من صحة البيانات والمحاولة مرة أخرى.");
+       const msg = err.message || "حدث خطأ ما. تأكد من صحة البيانات والمحاولة مرة أخرى.";
+       setErrorMsg(msg);
+       toast.error(msg);
     } finally {
       setLoading(false);
     }

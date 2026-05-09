@@ -1,16 +1,32 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
-import { PlusCircle, Search, Edit2, Trash2, Power, MoreVertical, LayoutTemplate } from "lucide-react";
+import { PlusCircle, Search, Edit2, Trash2, Power, MoreVertical, LayoutTemplate, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
-import { doc, updateDoc, deleteDoc } from "firebase/firestore";
+import { doc, updateDoc, deleteDoc, collection, onSnapshot, query } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { useServices, Service } from "../hooks/useServices";
 import { ServiceIcon } from "../components/ServiceIcon";
+import { toast } from "react-hot-toast";
 
 export function AdminServices() {
   const { services, loading } = useServices(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [loadingAction, setLoadingAction] = useState<string | null>(null);
+  const [categories, setCategories] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, "categories"));
+    const unsubscribe = onSnapshot(q, (snap) => {
+      const cats: any[] = [];
+      snap.forEach(d => cats.push({ id: d.id, ...d.data() }));
+      setCategories(cats);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const getCategoryName = (id: string) => {
+    return categories.find(c => c.id === id)?.name || "—";
+  };
 
   const filteredServices = services.filter(s => 
     s.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
@@ -23,6 +39,7 @@ export function AdminServices() {
       await updateDoc(doc(db, "services", service.id), {
         isActive: !service.isActive
       });
+      toast.success(service.isActive ? "تم تعطيل الخدمة" : "تم تفعيل الخدمة");
     } catch (error) {
        handleFirestoreError(error, OperationType.UPDATE, "services");
     } finally {
@@ -35,6 +52,7 @@ export function AdminServices() {
     setLoadingAction(id);
     try {
       await deleteDoc(doc(db, "services", id));
+      toast.success("تم حذف الخدمة بنجاح");
     } catch (error) {
        handleFirestoreError(error, OperationType.DELETE, "services");
     } finally {
@@ -71,10 +89,13 @@ export function AdminServices() {
             />
           </div>
           <div className="flex gap-2">
-            <button className="px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2">
+            <Link 
+              to="/admin/categories"
+              className="px-4 py-3 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600 dark:text-slate-300 font-medium hover:bg-slate-50 dark:hover:bg-slate-700 flex items-center gap-2 transition-colors"
+            >
               <LayoutTemplate size={18} />
-              التصنيفات
-            </button>
+              إدارة التصنيفات
+            </Link>
           </div>
         </div>
 
@@ -83,9 +104,8 @@ export function AdminServices() {
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-800/50 text-slate-500 dark:text-slate-400 text-sm border-b border-slate-100 dark:border-slate-700">
                 <th className="p-4 font-medium rounded-tr-xl">الخدمة</th>
+                <th className="p-4 font-medium">التصنيف</th>
                 <th className="p-4 font-medium">نوع السعر</th>
-                <th className="p-4 font-medium">عدد الحقول</th>
-                <th className="p-4 font-medium">تاريخ الإضافة</th>
                 <th className="p-4 font-medium">الحالة</th>
                 <th className="p-4 font-medium rounded-tl-xl text-center">إجراءات</th>
               </tr>
@@ -118,14 +138,13 @@ export function AdminServices() {
                       </div>
                     </div>
                   </td>
+                  <td className="p-4">
+                    <span className="text-xs font-bold bg-slate-100 dark:bg-slate-700 px-2 py-1 rounded-lg">
+                      {getCategoryName(service.categoryId || "")}
+                    </span>
+                  </td>
                   <td className="p-4 font-medium text-slate-600 dark:text-slate-300">
-                    {service.dynamicPrice ? "متغير (حسب الفاتورة)" : <span className="font-en">{service.price?.toLocaleString()} SP</span>}
-                  </td>
-                  <td className="p-4 text-slate-600 dark:text-slate-300">
-                    {service.fields?.length || 0} حقول
-                  </td>
-                  <td className="p-4 text-sm text-slate-500">
-                    {new Date(service.createdAt?.toMillis() || Date.now()).toLocaleDateString('ar-SY')}
+                    {service.dynamicPrice ? "متغير" : <span className="font-en">{service.price?.toLocaleString()} SP</span>}
                   </td>
                   <td className="p-4">
                     <button 
