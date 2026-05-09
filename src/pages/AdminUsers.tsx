@@ -1,9 +1,10 @@
 import { useState, useEffect, useMemo } from "react";
-import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, increment } from "firebase/firestore";
+import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, increment, setDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { Search, User as UserIcon, Shield, CreditCard, Mail, Phone, Calendar, MapPin, MoreVertical, Plus } from "lucide-react";
+import { Search, User as UserIcon, Shield, CreditCard, Mail, Phone, Calendar, MapPin, MoreVertical, Plus, ChevronRight, Check } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import Fuse from "fuse.js";
+import { toast } from "react-hot-toast";
 
 export function AdminUsers() {
   const [users, setUsers] = useState<any[]>([]);
@@ -11,6 +12,9 @@ export function AdminUsers() {
   const [searchTerm, setSearchTerm] = useState("");
   const [selectedUser, setSelectedUser] = useState<any | null>(null);
   const [amountToAdd, setAmountToAdd] = useState("");
+  const [balanceNote, setBalanceNote] = useState("");
+  const [addBalanceStep, setAddBalanceStep] = useState(1);
+  const [dailyLimit, setDailyLimit] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
 
   useEffect(() => {
@@ -35,7 +39,7 @@ export function AdminUsers() {
         "email",
         "phoneNumber"
       ],
-      threshold: 0.3, // Lower threshold means more strict matching
+      threshold: 0.3,
       distance: 100,
       ignoreLocation: true
     });
@@ -46,21 +50,60 @@ export function AdminUsers() {
     return fuse.search(searchTerm).map(result => result.item);
   }, [fuse, searchTerm, users]);
 
-  const addBalance = async (userId: string) => {
+  const addBalance = async (user: any) => {
     if (!amountToAdd || isNaN(Number(amountToAdd))) return;
     setIsUpdating(true);
     try {
-      await updateDoc(doc(db, "users", userId), {
+      await updateDoc(doc(db, "users", user.id), {
         walletBalance: increment(Number(amountToAdd)),
         updatedAt: serverTimestamp()
       });
+      
+      const transactionRef = doc(collection(db, "transactions"));
+      await setDoc(transactionRef, {
+         userId: user.id,
+         userEmail: user.email,
+         type: "deposit",
+         amount: Number(amountToAdd),
+         status: "completed",
+         method: "admin",
+         description: balanceNote || "شحن محفظة من قبل المشرف",
+         createdAt: serverTimestamp()
+      });
+
+      toast.success("تم شحن المحفظة بنجاح!");
       setAmountToAdd("");
-      setSelectedUser(null);
+      setBalanceNote("");
+      setAddBalanceStep(1);
+      // close modal or just let it reflect changes
+      if (selectedUser?.id === user.id) {
+         setSelectedUser({...selectedUser, walletBalance: (selectedUser.walletBalance || 0) + Number(amountToAdd)});
+      }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, "users");
+      toast.error("حدث خطأ أثناء الشحن");
+      console.error(error);
     } finally {
       setIsUpdating(false);
     }
+  };
+
+  const updateDailyLimit = async (user: any) => {
+     if (!dailyLimit || isNaN(Number(dailyLimit))) return;
+     setIsUpdating(true);
+     try {
+       await updateDoc(doc(db, "users", user.id), {
+         dailyServiceLimit: Number(dailyLimit),
+         updatedAt: serverTimestamp()
+       });
+       toast.success("تم تحديث الحد اليومي بنجاح");
+       if (selectedUser?.id === user.id) {
+         setSelectedUser({...selectedUser, dailyServiceLimit: Number(dailyLimit)});
+       }
+     } catch (error) {
+        toast.error("حدث خطأ أثناء التحديث");
+     } finally {
+        setIsUpdating(false);
+     }
   };
 
   const toggleAdmin = async (user: any) => {
@@ -200,26 +243,82 @@ export function AdminUsers() {
                     </div>
                  </div>
 
-                 <div className="space-y-3">
-                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">إضافة رصيد (شحن الحساب)</label>
-                   <div className="flex gap-2">
-                     <div className="relative flex-1">
-                       <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-en">SP</span>
+                 <div className="space-y-4">
+                   <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">شحن المحفظة</label>
+                     {addBalanceStep === 1 ? (
+                       <div className="space-y-3">
+                         <div className="relative">
+                           <span className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400 font-en">SP</span>
+                           <input 
+                             type="number" 
+                             value={amountToAdd} 
+                             onChange={(e) => setAmountToAdd(e.target.value)}
+                             placeholder="المبلغ المراد شحنه..."
+                             className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors font-en"
+                           />
+                         </div>
+                         <input 
+                           type="text" 
+                           value={balanceNote} 
+                           onChange={(e) => setBalanceNote(e.target.value)}
+                           placeholder="ملاحظات (اختياري)"
+                           className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors"
+                         />
+                         <button 
+                            onClick={() => amountToAdd && setAddBalanceStep(2)}
+                            disabled={!amountToAdd}
+                            className="w-full bg-indigo-500 hover:bg-indigo-600 text-white py-3 rounded-xl font-bold transition-all disabled:opacity-50 flex justify-center items-center gap-2"
+                         >
+                           متابعة الشحن <ChevronRight className="rotate-180" size={18} />
+                         </button>
+                       </div>
+                     ) : (
+                        <div className="space-y-3 bg-white dark:bg-slate-800 p-4 rounded-xl border border-indigo-100 dark:border-indigo-500/20">
+                          <p className="text-center text-sm font-bold mb-2">تأكيد عملية الشحن</p>
+                          <div className="flex justify-between items-center bg-slate-50 dark:bg-slate-900 p-2 rounded-lg">
+                             <span className="text-slate-500 text-sm">المبلغ:</span>
+                             <span className="font-bold text-indigo-500 font-en">{Number(amountToAdd).toLocaleString()} SP</span>
+                          </div>
+                          <div className="flex gap-2 pt-2">
+                             <button 
+                               onClick={() => addBalance(selectedUser)}
+                               disabled={isUpdating}
+                               className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-2.5 rounded-xl font-bold transition-all disabled:opacity-50 flex justify-center items-center gap-2"
+                             >
+                                <Check size={18} /> تأكيد الشحن
+                             </button>
+                             <button 
+                               onClick={() => setAddBalanceStep(1)}
+                               disabled={isUpdating}
+                               className="px-4 bg-slate-200 hover:bg-slate-300 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all"
+                             >
+                               إلغاء
+                             </button>
+                          </div>
+                        </div>
+                     )}
+                   </div>
+
+                   <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">الحد اليومي لطلبات الخدمات</label>
+                     <div className="flex gap-2">
                        <input 
                          type="number" 
-                         value={amountToAdd} 
-                         onChange={(e) => setAmountToAdd(e.target.value)}
-                         placeholder="أدخل المبلغ..."
-                         className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-3.5 focus:outline-none focus:border-indigo-500 transition-colors font-en"
+                         value={dailyLimit !== "" ? dailyLimit : (selectedUser.dailyServiceLimit || "")} 
+                         onChange={(e) => setDailyLimit(e.target.value)}
+                         placeholder="بدون حد"
+                         className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors font-en"
                        />
+                       <button 
+                          onClick={() => updateDailyLimit(selectedUser)}
+                          disabled={isUpdating || !dailyLimit}
+                          className="bg-slate-800 hover:bg-slate-900 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white px-6 rounded-xl font-bold transition-all disabled:opacity-50"
+                       >
+                         تحديث
+                       </button>
                      </div>
-                     <button 
-                        onClick={() => addBalance(selectedUser.id)}
-                        disabled={isUpdating || !amountToAdd}
-                        className="bg-indigo-500 hover:bg-indigo-600 text-white px-6 rounded-xl font-bold transition-all disabled:opacity-50 flex items-center gap-2"
-                     >
-                       <Plus size={20} /> إضافة
-                     </button>
+                     <p className="text-xs text-slate-500 mt-2">اتركه فارغاً أو صفر لجعله بلا حدود.</p>
                    </div>
                  </div>
 

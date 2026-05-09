@@ -1,11 +1,12 @@
 import { useState, useEffect, FormEvent } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
-import { ChevronRight, Star, ShieldCheck, EyeOff, Eye, CreditCard, ShoppingCart } from "lucide-react";
-import { motion } from "motion/react";
-import { doc, getDoc, collection, setDoc, serverTimestamp } from "firebase/firestore";
+import { ChevronRight, Star, ShieldCheck, EyeOff, Eye, CreditCard, ShoppingCart, Loader2, Check, AlertCircle } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
+import { doc, getDoc, collection, setDoc, serverTimestamp, query, where, getDocs, updateDoc, increment } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Service, ServiceField } from "../hooks/useServices";
 import { useAuth } from "../contexts/AuthContext";
+import { toast } from "react-hot-toast";
 
 export function ServiceDetails() {
   const { id } = useParams();
@@ -19,6 +20,10 @@ export function ServiceDetails() {
   const [formData, setFormData] = useState<Record<string, string>>({});
   const [submitting, setSubmitting] = useState(false);
   const [customPrice, setCustomPrice] = useState("");
+  
+  const [step, setStep] = useState(1);
+  const [orderSummary, setOrderSummary] = useState<any>(null);
+  const [checkingWallet, setCheckingWallet] = useState(false);
 
   useEffect(() => {
     async function loadService() {
@@ -37,28 +42,114 @@ export function ServiceDetails() {
     loadService();
   }, [id]);
 
-  const handleSubmit = async (e: FormEvent) => {
+  const handleNextStep = async (e: FormEvent) => {
     e.preventDefault();
-    if (!service || !user) return; // Add login prompt in real app
+    if (!service || !user) {
+      toast.error("يرجى تسجيل الدخول أولاً");
+      return;
+    }
+    
+    // Validate required fields
+    for (const field of service.fields || []) {
+      if (field.required && !formData[field.name]) {
+         toast.error(`يرجى إدخال ${field.label}`);
+         return;
+      }
+    }
+
+    if (service.dynamicPrice && (!customPrice || isNaN(Number(customPrice)) || Number(customPrice) <= 0)) {
+       toast.error("يرجى إدخال مبلغ صحيح");
+       return;
+    }
+
+    setCheckingWallet(true);
+    try {
+       // Fetch user profile accurately
+       const userSnap = await getDoc(doc(db, "users", user.uid));
+       if (!userSnap.exists()) throw new Error("User not found");
+       const userData = userSnap.data();
+       const currentBalance = userData.walletBalance || 0;
+       const dailyLimit = userData.dailyServiceLimit || 0; // 0 means unlimited
+
+       // Calculate number of requests today
+       let todayRequests = 0;
+       if (dailyLimit > 0) {
+         const startOfDay = new Date();
+         startOfDay.setHours(0, 0, 0, 0);
+         
+         const q = query(
+           collection(db, "transactions"), 
+           where("userId", "==", user.uid), 
+           where("createdAt", ">=", startOfDay)
+         );
+         const txSnap = await getDocs(q);
+         // Count non-deposits
+         todayRequests = txSnap.docs.filter(d => d.data().type !== "deposit").length;
+         
+         if (todayRequests >= dailyLimit) {
+            toast.error(`لقد وصلت للحد اليومي المسموح (${dailyLimit} طلب/يوم)`);
+            setCheckingWallet(false);
+            return;
+         }
+       }
+
+       let finalPrice = service.dynamicPrice ? Number(customPrice) : service.price;
+       
+       setOrderSummary({
+          finalPrice,
+          currentBalance,
+          dailyLimit,
+          todayRequests,
+          insufficientBalance: currentBalance < finalPrice
+       });
+       
+       setStep(2);
+    } catch (error) {
+       toast.error("حدث خطأ أثناء فحص البيانات");
+    } finally {
+       setCheckingWallet(false);
+    }
+  };
+
+  const handleConfirmOrder = async () => {
+    if (!service || !user || !orderSummary) return;
+    
+    // Double check balance here if we want to be secure (Firestore rules should also protect, but we can decrement wallet balance directly or wait for admin)
+    // We will just create order, and if admin approves, the balance is deducted, OR we deduct it now?
+    // Let's deduct it now so they can't spam requests with the same balance
     
     setSubmitting(true);
-    let finalPrice = service.dynamicPrice ? Number(customPrice) : service.price;
     
     try {
+      if (orderSummary.insufficientBalance) {
+         toast.error("الرصيد غير كافٍ لإتمام العملية");
+         setSubmitting(false);
+         return;
+      }
+
+      await updateDoc(doc(db, "users", user.uid), {
+         walletBalance: increment(-orderSummary.finalPrice),
+         updatedAt: serverTimestamp()
+      });
+
       const transactionRef = doc(collection(db, "transactions"));
       await setDoc(transactionRef, {
         userId: user.uid,
+        userEmail: user.email,
         serviceId: service.id,
         serviceName: service.name,
         company: service.company,
-        amount: finalPrice,
+        amount: orderSummary.finalPrice,
         requestData: formData,
         status: "قيد المراجعة",
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp(),
       });
+      
+      toast.success("تم إرسال الطلب بنجاح!");
       navigate('/user');
     } catch (error) {
+      toast.error("حدث خطأ أثناء معالجة الطلب");
       handleFirestoreError(error, OperationType.CREATE, "transactions");
     } finally {
       setSubmitting(false);
@@ -138,76 +229,130 @@ export function ServiceDetails() {
               </div>
             )}
 
-            <form className="space-y-6" onSubmit={handleSubmit}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {service.fields?.map((field, i) => (
-                  <div key={i} className={field.type === 'password' ? 'col-span-1 md:col-span-2' : ''}>
-                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                      {field.label} {field.required && <span className="text-red-500">*</span>}
-                    </label>
-                    {field.type === 'password' ? (
-                      <div className="relative">
+            {step === 1 ? (
+              <form className="space-y-6" onSubmit={handleNextStep}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {service.fields?.map((field, i) => (
+                    <div key={i} className={field.type === 'password' ? 'col-span-1 md:col-span-2' : ''}>
+                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                        {field.label} {field.required && <span className="text-red-500">*</span>}
+                      </label>
+                      {field.type === 'password' ? (
+                        <div className="relative">
+                          <input 
+                            type={showPassword ? "text" : "password"} 
+                            required={field.required}
+                            value={formData[field.name] || ''}
+                            onChange={e => setFormData({...formData, [field.name]: e.target.value})}
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en text-left dir-ltr" 
+                          />
+                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                            {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+                          </button>
+                        </div>
+                      ) : (
                         <input 
-                          type={showPassword ? "text" : "password"} 
+                          type={field.type} 
                           required={field.required}
                           value={formData[field.name] || ''}
                           onChange={e => setFormData({...formData, [field.name]: e.target.value})}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en text-left dir-ltr" 
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors" 
                         />
-                        <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
-                          {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
-                        </button>
-                      </div>
-                    ) : (
-                      <input 
-                        type={field.type} 
-                        required={field.required}
-                        value={formData[field.name] || ''}
-                        onChange={e => setFormData({...formData, [field.name]: e.target.value})}
-                        className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors" 
-                      />
-                    )}
-                  </div>
-                ))}
-              </div>
-
-              {service.dynamicPrice && (
-                 <div>
-                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
-                     المبلغ المطلوب إرساله (ل.س) <span className="text-red-500">*</span>
-                   </label>
-                   <input 
-                     type="number" 
-                     required
-                     value={customPrice}
-                     onChange={e => setCustomPrice(e.target.value)}
-                     className="w-full bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-700/50 rounded-xl px-4 py-3.5 text-indigo-900 dark:text-indigo-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en" 
-                     placeholder="أدخل قيمة الفاتورة" 
-                   />
-                 </div>
-              )}
-
-              <div className="flex items-center gap-3 pt-2 pb-4 border-b border-slate-100 dark:border-slate-700">
-                <div className="relative flex items-center">
-                  <input 
-                    type="checkbox" 
-                    checked={saveData}
-                    onChange={(e) => setSaveData(e.target.checked)}
-                    className="w-5 h-5 border-slate-300 rounded text-indigo-500 focus:ring-indigo-500 bg-white" 
-                  />
+                      )}
+                    </div>
+                  ))}
                 </div>
-                <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  حفظ بياناتي للطلبات القادمة (للتعبئة الآلية)
-                </label>
-              </div>
 
-              <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                <button disabled={!user || submitting} type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:grayscale">
-                  <ShoppingCart size={20} />
-                  {submitting ? "جاري الإرسال..." : "إرسال الطلب"}
-                </button>
-              </div>
-            </form>
+                {service.dynamicPrice && (
+                   <div>
+                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                       المبلغ المطلوب إرساله (ل.س) <span className="text-red-500">*</span>
+                     </label>
+                     <input 
+                       type="number" 
+                       required
+                       value={customPrice}
+                       onChange={e => setCustomPrice(e.target.value)}
+                       className="w-full bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-700/50 rounded-xl px-4 py-3.5 text-indigo-900 dark:text-indigo-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en" 
+                       placeholder="أدخل قيمة الفاتورة" 
+                     />
+                   </div>
+                )}
+
+                <div className="flex items-center gap-3 pt-2 pb-4 border-b border-slate-100 dark:border-slate-700">
+                  <div className="relative flex items-center">
+                    <input 
+                      type="checkbox" 
+                      checked={saveData}
+                      onChange={(e) => setSaveData(e.target.checked)}
+                      className="w-5 h-5 border-slate-300 rounded text-indigo-500 focus:ring-indigo-500 bg-white" 
+                    />
+                  </div>
+                  <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                    حفظ بياناتي للطلبات القادمة (للتعبئة الآلية)
+                  </label>
+                </div>
+
+                <div className="flex flex-col sm:flex-row gap-4 pt-4">
+                  <button disabled={!user || checkingWallet} type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:grayscale">
+                    {checkingWallet ? <Loader2 className="animate-spin" size={20} /> : <ShoppingCart size={20} />}
+                    {checkingWallet ? "جاري التحقق..." : "متابعة الطلب"}
+                  </button>
+                </div>
+              </form>
+            ) : (
+               <motion.div 
+                 initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }}
+                 className="space-y-6"
+               >
+                  <div className="bg-slate-50 dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-700 space-y-4">
+                     <h3 className="font-bold text-lg text-center mb-4 border-b border-slate-200 dark:border-slate-700 pb-4">تأكيد عملية الدفع</h3>
+                     
+                     <div className="space-y-3 font-en">
+                        <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700">
+                          <span className="font-bold font-sans text-slate-700 dark:text-slate-300">المبلغ المطلوب:</span>
+                          <span className="font-bold text-lg text-slate-900 dark:text-white">{orderSummary?.finalPrice.toLocaleString()} SP</span>
+                        </div>
+                        <div className="flex justify-between items-center bg-white dark:bg-slate-800 p-3 rounded-lg border border-slate-100 dark:border-slate-700">
+                          <span className="font-bold font-sans text-slate-700 dark:text-slate-300">رصيد المحفظة الحالي:</span>
+                          <span className="font-bold text-indigo-500">{orderSummary?.currentBalance.toLocaleString()} SP</span>
+                        </div>
+                     </div>
+                     
+                     {orderSummary?.insufficientBalance ? (
+                        <div className="bg-red-50 dark:bg-red-500/10 border-l-4 border-red-500 p-4 rounded-lg text-red-600 dark:text-red-400 font-medium text-sm flex items-start gap-2 mt-4">
+                          <AlertCircle size={18} className="mt-0.5 shrink-0" />
+                          <p>عذراً، رصيد المحفظة غير كافٍ لإتمام هذه العملية. يرجى شحن حسابك والمحاولة مرة أخرى.</p>
+                        </div>
+                     ) : (
+                        <div className="bg-emerald-50 dark:bg-emerald-500/10 border-l-4 border-emerald-500 p-4 rounded-lg text-emerald-600 dark:text-emerald-400 font-bold text-sm flex items-center gap-2 mt-4">
+                          <Check size={18} />
+                          <p>رصيد المحفظة يغطي قيمة الاشتراك.</p>
+                        </div>
+                     )}
+
+                     {orderSummary?.dailyLimit > 0 && (
+                        <p className="text-center text-xs text-slate-500 pt-2 font-en">
+                          طلباتك اليوم: {orderSummary.todayRequests} / {orderSummary.dailyLimit}
+                        </p>
+                     )}
+                  </div>
+
+                  <div className="flex gap-4">
+                     <button onClick={() => setStep(1)} disabled={submitting} className="px-6 py-3.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 rounded-xl font-bold transition-all disabled:opacity-50">
+                        رجوع
+                     </button>
+                     <button 
+                       onClick={handleConfirmOrder} 
+                       disabled={submitting || orderSummary?.insufficientBalance} 
+                       className="flex-1 bg-gradient-to-r from-emerald-500 to-emerald-600 text-white font-bold py-3.5 rounded-xl shadow-lg shadow-emerald-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:grayscale"
+                     >
+                       {submitting ? <Loader2 className="animate-spin" size={20} /> : <Check size={20} />}
+                       {submitting ? "جاري الإرسال والتأكيد..." : "تأكيد الدفع"}
+                     </button>
+                  </div>
+               </motion.div>
+            )}
           </div>
         </motion.div>
       </div>

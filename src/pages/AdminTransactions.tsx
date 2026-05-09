@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Search, Filter, CheckCircle, XCircle, Clock, Eye, MoreHorizontal } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import { toast } from "react-hot-toast";
 
 export function AdminTransactions() {
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -35,17 +36,28 @@ export function AdminTransactions() {
     return matchesSearch && matchesStatus;
   });
 
-  const updateStatus = async (id: string, newStatus: string) => {
+  const updateStatus = async (tx: any, newStatus: string) => {
     try {
-      await updateDoc(doc(db, "transactions", id), {
+      await updateDoc(doc(db, "transactions", tx.id), {
         status: newStatus,
         updatedAt: serverTimestamp()
       });
-      if (selectedTx?.id === id) {
+      
+      if (newStatus === "مرفوض" && tx.status !== "مرفوض" && tx.type !== "deposit" && !!tx.amount) {
+         await updateDoc(doc(db, "users", tx.userId), {
+            walletBalance: increment(tx.amount)
+         });
+         toast.success("تم التحديث وإرجاع الرصيد للمستخدم");
+      } else {
+         toast.success("تم تحديث الحالة بنجاح");
+      }
+
+      if (selectedTx?.id === tx.id) {
         setSelectedTx({ ...selectedTx, status: newStatus });
       }
     } catch (error) {
-      handleFirestoreError(error, OperationType.UPDATE, "transactions");
+      toast.error("حدث خطأ أثناء التحديث");
+      console.error(error);
     }
   };
 
@@ -210,14 +222,14 @@ export function AdminTransactions() {
 
                 <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                   <button 
-                    onClick={() => updateStatus(selectedTx.id, "مكتمل")}
+                    onClick={() => updateStatus(selectedTx, "مكتمل")}
                     disabled={selectedTx.status === "مكتمل"}
                     className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
                   >
                     اعتماد الطلب
                   </button>
                   <button 
-                    onClick={() => updateStatus(selectedTx.id, "مرفوض")}
+                    onClick={() => updateStatus(selectedTx, "مرفوض")}
                     disabled={selectedTx.status === "مرفوض"}
                     className="flex-1 bg-red-500 hover:bg-red-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-red-500/20 disabled:opacity-50"
                   >
