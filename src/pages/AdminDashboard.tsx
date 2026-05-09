@@ -1,19 +1,8 @@
 import { useState, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Users, CreditCard, Activity, ArrowUpRight, MoreVertical, CheckCircle, XCircle } from "lucide-react";
-import { AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 import { collection, query, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-
-const data = [
-  { name: 'السبت', value: 4000 },
-  { name: 'الأحد', value: 3000 },
-  { name: 'الإثنين', value: 2000 },
-  { name: 'الثلاثاء', value: 2780 },
-  { name: 'الأربعاء', value: 1890 },
-  { name: 'الخميس', value: 2390 },
-  { name: 'الجمعة', value: 3490 },
-];
 
 export function AdminDashboard() {
   const [transactions, setTransactions] = useState<any[]>([]);
@@ -90,90 +79,64 @@ export function AdminDashboard() {
         </div>
       </div>
 
-      {/* Chart & Recent */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 bg-white dark:bg-slate-800 rounded-[32px] p-6 lg:p-8 border border-slate-100 dark:border-slate-700 shadow-sm">
-          <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-6">نشاط العمليات خلال الأسبوع</h3>
-          <div className="h-72" dir="ltr">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={data} margin={{ top: 10, right: 30, left: 0, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#6366F1" stopOpacity={0.3}/>
-                    <stop offset="95%" stopColor="#6366F1" stopOpacity={0}/>
-                  </linearGradient>
-                </defs>
-                <XAxis dataKey="name" stroke="#8884d8" tick={{ fill: '#64748B' }} axisLine={false} tickLine={false} />
-                <YAxis stroke="#8884d8" tick={{ fill: '#64748B' }} axisLine={false} tickLine={false} />
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#334155" opacity={0.2} />
-                <Tooltip 
-                  contentStyle={{ backgroundColor: '#1E293B', borderRadius: '16px', border: 'none', color: '#fff' }}
-                  itemStyle={{ color: '#fff' }}
-                />
-                <Area type="monotone" dataKey="value" stroke="#6366F1" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
+      {/* Recent Orders */}
+      <div className="bg-white dark:bg-slate-800 rounded-[32px] p-6 lg:p-8 border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col">
+        <div className="flex justify-between items-center mb-6">
+          <h3 className="text-xl font-bold text-slate-800 dark:text-white">أحدث الطلبات</h3>
+          <Link to="/admin/transactions" className="text-sm font-bold text-indigo-500 hover:text-indigo-600 flex items-center gap-1">
+            عرض الكل
+            <ArrowUpRight size={16} />
+          </Link>
         </div>
-
-        <div className="bg-white dark:bg-slate-800 rounded-[32px] p-6 lg:p-8 border border-slate-100 dark:border-slate-700 shadow-sm flex flex-col">
-          <div className="flex justify-between items-center mb-6">
-            <h3 className="text-xl font-bold text-slate-800 dark:text-white">أحدث الطلبات</h3>
-            <Link to="/admin/transactions" className="text-sm font-bold text-indigo-500 hover:text-indigo-600 flex items-center gap-1">
-              عرض الكل
-              <ArrowUpRight size={16} />
-            </Link>
-          </div>
-          
-          <div className="flex-1 overflow-y-auto pr-2 space-y-4">
-            {transactions.slice(0, 10).map((tx) => (
-              <div key={tx.id} className={`flex items-center justify-between p-4 rounded-xl border ${tx.status === 'مكتمل' ? 'border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10' : tx.status === 'مرفوض' ? 'border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10' : 'border-amber-100 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/10'}`}>
-                <div className="flex-1">
-                  <p className="font-bold text-slate-800 dark:text-white mb-1">{tx.serviceName}</p>
-                  <div className="flex flex-wrap gap-2 text-xs">
-                    <span className="text-slate-500 py-0.5 px-2 bg-white dark:bg-slate-800 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{tx.company}</span>
-                    <span className="font-bold text-indigo-600 dark:text-indigo-400 py-0.5 px-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-md font-en">{tx.amount?.toLocaleString()} SP</span>
-                  </div>
-                </div>
-                <div className="flex items-center gap-3 relative mr-2">
-                  <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${
-                    tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 
-                    tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'
-                  }`}>
-                    {tx.status}
-                  </span>
-                  
-                  <div className="relative">
-                    <button 
-                      disabled={loadingAction === tx.id}
-                      onClick={() => setDropdownOpen(dropdownOpen === tx.id ? null : tx.id)}
-                      className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
-                    >
-                      <MoreVertical size={18} />
-                    </button>
-                    {dropdownOpen === tx.id && (
-                      <>
-                        <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(null)}></div>
-                        <div className="absolute left-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-2 z-50 overflow-hidden">
-                          <button onClick={() => updateStatus(tx.id, "مكتمل")} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
-                            <CheckCircle size={16} /> قبول وإكمال
-                          </button>
-                          <button onClick={() => updateStatus(tx.id, "مرفوض")} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 text-red-600 dark:text-red-400 flex items-center gap-2">
-                            <XCircle size={16} /> رفض
-                          </button>
-                        </div>
-                      </>
-                    )}
-                  </div>
+        
+        <div className="max-h-[500px] overflow-y-auto pr-2 space-y-4">
+          {transactions.slice(0, 10).map((tx) => (
+            <div key={tx.id} className={`flex items-center justify-between p-4 rounded-xl border ${tx.status === 'مكتمل' ? 'border-emerald-100 dark:border-emerald-900/30 bg-emerald-50/50 dark:bg-emerald-900/10' : tx.status === 'مرفوض' ? 'border-red-100 dark:border-red-900/30 bg-red-50/50 dark:bg-red-900/10' : 'border-amber-100 dark:border-amber-900/30 bg-amber-50/50 dark:bg-amber-900/10'}`}>
+              <div className="flex-1">
+                <p className="font-bold text-slate-800 dark:text-white mb-1">{tx.serviceName}</p>
+                <div className="flex flex-wrap gap-2 text-xs">
+                  <span className="text-slate-500 py-0.5 px-2 bg-white dark:bg-slate-800 rounded-md shadow-sm border border-slate-100 dark:border-slate-700">{tx.company}</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-400 py-0.5 px-2 bg-indigo-50 dark:bg-indigo-900/30 rounded-md font-en">{tx.amount?.toLocaleString()} SP</span>
                 </div>
               </div>
-            ))}
-            {transactions.length === 0 && (
-              <div className="text-center text-slate-500 py-8 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-2xl">
-                لا توجد طلبات جديدة
+              <div className="flex items-center gap-3 relative mr-2">
+                <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shrink-0 ${
+                  tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : 
+                  tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'
+                }`}>
+                  {tx.status}
+                </span>
+                
+                <div className="relative">
+                  <button 
+                    disabled={loadingAction === tx.id}
+                    onClick={() => setDropdownOpen(dropdownOpen === tx.id ? null : tx.id)}
+                    className="p-1 text-slate-400 hover:text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors"
+                  >
+                    <MoreVertical size={18} />
+                  </button>
+                  {dropdownOpen === tx.id && (
+                    <>
+                      <div className="fixed inset-0 z-40" onClick={() => setDropdownOpen(null)}></div>
+                      <div className="absolute left-0 mt-2 w-48 bg-white dark:bg-slate-800 rounded-xl shadow-xl border border-slate-100 dark:border-slate-700 py-2 z-50 overflow-hidden">
+                        <button onClick={() => updateStatus(tx.id, "مكتمل")} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 text-emerald-600 dark:text-emerald-400 flex items-center gap-2">
+                          <CheckCircle size={16} /> قبول وإكمال
+                        </button>
+                        <button onClick={() => updateStatus(tx.id, "مرفوض")} className="w-full text-right px-4 py-2.5 text-sm font-medium hover:bg-slate-50 dark:hover:bg-slate-700 text-red-600 dark:text-red-400 flex items-center gap-2">
+                          <XCircle size={16} /> رفض
+                        </button>
+                      </div>
+                    </>
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            </div>
+          ))}
+          {transactions.length === 0 && (
+            <div className="text-center text-slate-500 py-8 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-2xl">
+              لا توجد طلبات جديدة
+            </div>
+          )}
         </div>
       </div>
     </div>

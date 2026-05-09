@@ -1,5 +1,5 @@
 import { Outlet, Link, useLocation } from "react-router-dom";
-import { Home, Users, Settings, PlusCircle, CreditCard, LayoutTemplate, Briefcase, FileText, Menu, X, Bell, Moon, Sun, Lock } from "lucide-react";
+import { Home, Users, Settings, PlusCircle, CreditCard, LayoutTemplate, Briefcase, FileText, Menu, X, Bell, Moon, Sun, Lock, Shield } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAuth } from "../../contexts/AuthContext";
@@ -86,8 +86,9 @@ export function AdminLayout() {
     { name: "الرئيسية", path: "/admin", icon: <Home size={20} /> },
     { name: "الخدمات", path: "/admin/services", icon: <PlusCircle size={20} /> },
     { name: "المستخدمون", path: "/admin/users", icon: <Users size={20} /> },
+    { name: "طلبات التوثيق", path: "/admin/verifications", icon: <Shield size={20} /> },
     { name: "العمليات المالية", path: "/admin/transactions", icon: <CreditCard size={20} /> },
-    { name: "إعدادات", path: "#", icon: <Settings size={20} /> },
+    { name: "إعدادات", path: "/admin/settings", icon: <Settings size={20} /> },
   ];
 
   return (

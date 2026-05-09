@@ -10,10 +10,28 @@
         "phoneNumber": { "type": "string" },
         "role": { "type": "string", "enum": ["user", "admin"] },
         "walletBalance": { "type": "number" },
+        "isVerified": { "type": "boolean" },
+        "verificationStatus": { "type": "string", "enum": ["none", "pending", "verified", "rejected"] },
         "createdAt": { "type": "string", "format": "date-time" },
         "updatedAt": { "type": "string", "format": "date-time" }
       },
       "required": ["email", "role", "walletBalance", "createdAt", "updatedAt"]
+    },
+    "verification": {
+      "title": "Verification Request",
+      "description": "User request for identity verification",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "idFrontUrl": { "type": "string" },
+        "idBackUrl": { "type": "string" },
+        "selfieUrl": { "type": "string" },
+        "status": { "type": "string", "enum": ["pending", "verified", "rejected"] },
+        "adminComment": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "idFrontUrl", "status", "createdAt", "updatedAt"]
     },
     "service": {
       "title": "Service",
@@ -108,6 +126,10 @@
     "/users/{userId}/notifications/{notificationId}": {
       "schema": { "$ref": "#/entities/notification" },
       "description": "User notifications"
+    },
+    "/verifications/{verificationId}": {
+      "schema": { "$ref": "#/entities/verification" },
+      "description": "Identity verification requests"
     }
   }
 }

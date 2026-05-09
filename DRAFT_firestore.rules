@@ -1,166 +1,141 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    
+    // ============================================
+    // الدوال المساعدة (Helper Functions)
+    // ============================================
+    
+    // هل المستخدم مسجل دخوله؟
+    function isSignedIn() {
+      return request.auth != null;
+    }
+    
+    // هل هو صاحب البيانات؟
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+    
+    // هل هو مشرف؟ (طرق متعددة للمرونة)
+    function isAdmin() {
+      return isSignedIn() && (
+        // الطريقة 1: البريد الإلكتروني الثابت
+        request.auth.token.email == 'yuseef.syrai098@gmail.com' ||
+        request.auth.token.email == 'ywsfkrt300@gmail.com' ||
+        // الطريقة 2: جدول المشرفين المنفصل
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        // الطريقة 3: حقل role في ملف المستخدم
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && 
+         get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+    
+    // هل هو مشرف فائق (Super Admin)؟
+    function isSuperAdmin() {
+      return isSignedIn() && (
+        request.auth.token.email == 'yuseef.syrai098@gmail.com' ||
+        request.auth.token.email == 'ywsfkrt300@gmail.com'
+      );
+    }
+    
+    // الحقول المسموح للمستخدم العادي تحديثها
+    function allowedUserFields() {
+      return ['displayName', 'phoneNumber', 'birthDate', 'governorate', 'updatedAt'];
+    }
+    
+    // الحقول المحظورة
+    function blockedFields() {
+      return ['role', 'walletBalance', 'createdAt', 'email'];
+    }
+    
+    function incoming() {
+      return request.resource.data;
+    }
+
+    // ============================================
+    // القواعد الأساسية
+    // ============================================
+    
     match /{document=**} {
       allow read, write: if false;
     }
-
-    // --- Helpers ---
-    function isVerified() { return request.auth != null; }
-
-    function isAdmin() {
-      return isVerified() && (
-        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
-        request.auth.token.email == 'ywsfkrt300@gmail.com' ||
-        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+    
+    // ============================================
+    // جدول المستخدمين (Users)
+    // ============================================
+    match /users/{userId} {
+      // قراءة: صاحب الحساب أو مشرف
+      allow get: if isSignedIn() && (isOwner(userId) || isAdmin());
+      
+      // قائمة المستخدمين: المشرف فقط
+      allow list: if isAdmin();
+      
+      // إنشاء حساب جديد: فقط المستخدم نفسه
+      allow create: if isOwner(userId) && 
+                     incoming().role == 'user' &&
+                     incoming().walletBalance == 0;
+      
+      // تحديث: تحكم دقيق حسب الصلاحية
+      allow update: if isSignedIn() && (
+        // حالة 1: المستخدم يعدل بياناته (بدون صلاحيات أو رصيد)
+        (isOwner(userId) && 
+         !incoming().diff(resource.data).affectedKeys().hasAny(['role', 'walletBalance', 'createdAt', 'email']) &&
+         incoming().updatedAt == request.time) ||
+        // حالة 2: المشرف يعدل
+        isAdmin() ||
+        // حالة 3: السوبر مشرف يعدل أي شيء
+        isSuperAdmin()
       );
+      
+      // حذف: المشرف فقط
+      allow delete: if isAdmin();
     }
     
-    function isValidId(id) { 
-      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    // ============================================
+    // جدول المشرفين (Admins)
+    // ============================================
+    match /admins/{adminId} {
+      allow read: if isAdmin();
+      allow create, update, delete: if isSuperAdmin();
     }
     
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
-
-    // --- Collections ---
-
-    match /admins/{uid} {
-      allow read: if isVerified();
+    // ============================================
+    // جدول الخدمات (Services)
+    // ============================================
+    match /services/{serviceId} {
+      allow read: if true;
+      allow create, update, delete: if isAdmin();
+    }
+    
+    // ============================================
+    // جدول الشركات (Companies)
+    // ============================================
+    match /companies/{companyId} {
+      allow read: if true;
       allow write: if isAdmin();
     }
-
-    match /users/{userId} {
-      allow get: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
-      // Admin list
-      allow list: if isAdmin();
-
-      allow create: if isVerified() && 
-                    isValidId(userId) && 
-                    request.auth.uid == userId && 
-                    incoming().keys().hasAll(['email', 'role', 'walletBalance', 'createdAt', 'updatedAt', 'phoneNumber', 'birthDate', 'governorate']) &&
-                    incoming().keys().hasOnly(['email', 'role', 'walletBalance', 'createdAt', 'updatedAt', 'displayName', 'phoneNumber', 'birthDate', 'governorate']) &&
-                    incoming().email is string && incoming().email.size() <= 100 &&
-                    incoming().role == 'user' &&
-                    incoming().walletBalance == 0 &&
-                    incoming().createdAt == request.time &&
-                    incoming().updatedAt == request.time &&
-                    ( !('displayName' in incoming()) || (incoming().displayName is string && incoming().displayName.size() <= 100) ) &&
-                    incoming().phoneNumber is string && incoming().phoneNumber.size() <= 20 &&
-                    incoming().birthDate is string && incoming().birthDate.size() <= 20 &&
-                    incoming().governorate is string && incoming().governorate.size() <= 50;
-
-      allow update: if isVerified() && isValidId(userId) && (
-        isAdmin() ||
-        (request.auth.uid == userId && 
-         incoming().updatedAt == request.time &&
-         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phoneNumber', 'birthDate', 'governorate', 'updatedAt', 'role']) &&
-         incoming().walletBalance == existing().walletBalance &&
-         incoming().createdAt == existing().createdAt &&
-         incoming().email == existing().email &&
-         (!('phoneNumber' in incoming()) || (incoming().phoneNumber is string && incoming().phoneNumber.size() <= 20)) &&
-         (!('birthDate' in incoming()) || (incoming().birthDate is string && incoming().birthDate.size() <= 20)) &&
-         (!('governorate' in incoming()) || (incoming().governorate is string && incoming().governorate.size() <= 50))
-        )
-      );
-
-      // Subcollection: saved_services
-      match /saved_services/{savedServiceId} {
-        allow get: if isVerified() && isValidId(userId) && isValidId(savedServiceId) && (request.auth.uid == userId || isAdmin());
-        allow list: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
-        
-        allow create: if isVerified() && 
-                      isValidId(userId) && 
-                      isValidId(savedServiceId) && 
-                      request.auth.uid == userId &&
-                      incoming().keys().hasAll(['userId', 'serviceId', 'createdAt', 'updatedAt']) &&
-                      incoming().keys().hasOnly(['userId', 'serviceId', 'createdAt', 'updatedAt', 'customName', 'fieldsData']) &&
-                      incoming().userId == userId &&
-                      incoming().serviceId is string && incoming().serviceId.size() > 0 && incoming().serviceId.size() <= 128 &&
-                      incoming().createdAt == request.time &&
-                      incoming().updatedAt == request.time &&
-                      (!('customName' in incoming()) || (incoming().customName is string && incoming().customName.size() <= 100)) &&
-                      (!('fieldsData' in incoming()) || incoming().fieldsData is map);
-                      // In local/emulator existsAfter might fail if service doesn't exist, we skip validation here for simplicity
-                      
-        allow update: if isVerified() && isValidId(userId) && isValidId(savedServiceId) && (
-          isAdmin() ||
-          (request.auth.uid == userId && 
-           incoming().updatedAt == request.time &&
-           incoming().diff(existing()).affectedKeys().hasOnly(['customName', 'fieldsData', 'updatedAt']) &&
-           (!('customName' in incoming()) || (incoming().customName is string && incoming().customName.size() <= 100)) &&
-           (!('fieldsData' in incoming()) || incoming().fieldsData is map))
-        );
-        allow delete: if isVerified() && isValidId(userId) && isValidId(savedServiceId) && (request.auth.uid == userId || isAdmin());
-      }
+    
+    // ============================================
+    // جدول العمليات المالية (Transactions)
+    // ============================================
+    match /transactions/{txId} {
+      allow get: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && isAdmin();
       
-      // Subcollection: notifications
-      match /notifications/{notificationId} {
-        allow get: if isVerified() && isValidId(userId) && isValidId(notificationId) && (request.auth.uid == userId || isAdmin());
-        allow list: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
-        
-        allow create: if isAdmin() &&
-                      isValidId(userId) &&
-                      isValidId(notificationId) &&
-                      incoming().keys().hasAll(['userId', 'title', 'message', 'isRead', 'createdAt']) &&
-                      incoming().keys().hasOnly(['userId', 'title', 'message', 'isRead', 'createdAt']) &&
-                      incoming().userId == userId &&
-                      incoming().title is string && incoming().title.size() <= 100 &&
-                      incoming().message is string && incoming().message.size() <= 600 &&
-                      incoming().isRead is bool &&
-                      incoming().createdAt == request.time;
-        
-        allow update: if isVerified() && isValidId(userId) && isValidId(notificationId) && (
-          isAdmin() ||
-          (request.auth.uid == userId && 
-           incoming().diff(existing()).affectedKeys().hasOnly(['isRead']) &&
-           incoming().isRead is bool)
-        );
-        allow delete: if isAdmin();
-      }
+      allow create: if isSignedIn() && 
+                     incoming().userId == request.auth.uid;
+      
+      allow update: if isAdmin();
+      allow delete: if false;
     }
-
-    match /services/{serviceId} {
-      allow get: if isValidId(serviceId);
-      allow list: if true; // Public read
-
-      // We relax the strictness here for admin, just ensuring type constraints
-      allow create, update: if isAdmin() && isValidId(serviceId) &&
-                            incoming().keys().hasAll(['name', 'company', 'isActive', 'createdAt', 'updatedAt']) &&
-                            incoming().name is string && incoming().name.size() <= 100 &&
-                            incoming().company is string && incoming().company.size() <= 100 &&
-                            (!('price' in incoming()) || incoming().price is number) &&
-                            (!('dynamicPrice' in incoming()) || incoming().dynamicPrice is bool) &&
-                            (!('iconType' in incoming()) || incoming().iconType is string) &&
-                            (!('iconBgClass' in incoming()) || incoming().iconBgClass is string) &&
-                            (!('iconTextClass' in incoming()) || incoming().iconTextClass is string) &&
-                            (!('fields' in incoming()) || incoming().fields is list) &&
-                            incoming().isActive is bool;
-      
-      allow delete: if isAdmin() && isValidId(serviceId);
-    }
-
-    match /transactions/{transactionId} {
-      allow get: if true;
-      allow list: if true;
-
-      allow create: if isVerified() && 
-                    isValidId(transactionId) &&
-                    request.auth.uid == incoming().userId &&
-                    incoming().keys().hasAll(['userId', 'serviceId', 'serviceName', 'company', 'amount', 'status', 'createdAt', 'updatedAt', 'requestData']) &&
-                    incoming().keys().hasOnly(['userId', 'serviceId', 'serviceName', 'company', 'amount', 'status', 'createdAt', 'updatedAt', 'requestData', 'errorMsg']) &&
-                    incoming().serviceId is string && incoming().serviceId.size() > 0 && incoming().serviceId.size() <= 128 &&
-                    incoming().serviceName is string && incoming().serviceName.size() <= 200 &&
-                    incoming().company is string && incoming().company.size() <= 200 &&
-                    incoming().amount is number && incoming().amount >= 0 &&
-                    incoming().status in ['pending', 'قيد المراجعة', 'مكتمل', 'مرفوض'] &&
-                    incoming().requestData is map &&
-                    incoming().createdAt == request.time &&
-                    incoming().updatedAt == request.time;
-      
-      allow update: if isVerified() && isValidId(transactionId) && isAdmin();
-      
-      allow delete: if false; 
+    
+    // ============================================
+    // جدول الإشعارات (Notifications)
+    // ============================================
+    match /notifications/{notifId} {
+      allow read: if isSignedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn();
+      allow update, delete: if isAdmin();
     }
   }
 }

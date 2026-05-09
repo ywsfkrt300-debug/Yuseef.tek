@@ -5,6 +5,8 @@ import { useAuth } from "../../contexts/AuthContext";
 import { useState, useEffect, useRef } from "react";
 import { cn } from "../../lib/utils";
 import { motion, AnimatePresence } from "motion/react";
+import { doc, getDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
 
 export function Navbar() {
   const { theme, setTheme } = useTheme();
@@ -14,6 +16,21 @@ export function Navbar() {
   const [userDropdownOpen, setUserDropdownOpen] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const [appName, setAppName] = useState("باي مينتس");
+
+  useEffect(() => {
+    async function fetchSettings() {
+      try {
+        const sDoc = await getDoc(doc(db, "settings", "global"));
+        if (sDoc.exists()) {
+          setAppName(sDoc.data().appName || "باي مينتس");
+        }
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    fetchSettings();
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => {
@@ -56,9 +73,9 @@ export function Navbar() {
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2">
             <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-lg shadow-indigo-500/20">
-              P
+              {appName.charAt(0)}
             </div>
-            <span className="font-bold text-xl tracking-tight">باي مينتس</span>
+            <span className="font-bold text-xl tracking-tight">{appName}</span>
           </Link>
 
           {/* Desktop Links */}

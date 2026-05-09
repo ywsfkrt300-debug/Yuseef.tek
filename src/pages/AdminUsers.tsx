@@ -1,8 +1,9 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, increment } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Search, User as UserIcon, Shield, CreditCard, Mail, Phone, Calendar, MapPin, MoreVertical, Plus } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import Fuse from "fuse.js";
 
 export function AdminUsers() {
   const [users, setUsers] = useState<any[]>([]);
@@ -27,11 +28,23 @@ export function AdminUsers() {
     return () => unsubscribe();
   }, []);
 
-  const filteredUsers = users.filter(user => 
-    user.displayName?.toLowerCase().includes(searchTerm.toLowerCase()) || 
-    user.email?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    user.phoneNumber?.includes(searchTerm)
-  );
+  const fuse = useMemo(() => {
+    return new Fuse(users, {
+      keys: [
+        "displayName",
+        "email",
+        "phoneNumber"
+      ],
+      threshold: 0.3, // Lower threshold means more strict matching
+      distance: 100,
+      ignoreLocation: true
+    });
+  }, [users]);
+
+  const filteredUsers = useMemo(() => {
+    if (!searchTerm.trim()) return users;
+    return fuse.search(searchTerm).map(result => result.item);
+  }, [fuse, searchTerm, users]);
 
   const addBalance = async (userId: string) => {
     if (!amountToAdd || isNaN(Number(amountToAdd))) return;

@@ -1,9 +1,9 @@
 import React, { useState, useEffect } from "react";
-import { User, CreditCard, Clock, Bell, Wallet, Settings, Camera } from "lucide-react";
+import { User, CreditCard, Clock, Bell, Wallet, Settings, Camera, Copy, Check, Shield, Image as FileImage, AlertCircle, Loader2 } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 
 const GOVERNORATES = [
@@ -24,16 +24,30 @@ export function UserDashboard() {
     phoneNumber: "",
     birthDate: "",
     governorate: "",
-    walletBalance: 0
+    walletBalance: 0,
+    isVerified: false,
+    verificationStatus: "none"
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  // Verification State
+  const [idFront, setIdFront] = useState<string | null>(null);
+  const [idBack, setIdBack] = useState<string | null>(null);
+  const [selfie, setSelfie] = useState<string | null>(null);
+  const [verificationLoading, setVerificationLoading] = useState(false);
+  const [verificationMessage, setVerificationMessage] = useState("");
+  const [verificationData, setVerificationData] = useState<any>(null);
+
+  const copyToClipboard = (text: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedId(text);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   useEffect(() => {
     if (user) {
-      // Pre-fill from the current user object/firestore if we fetch it, for now we match what's in AuthContext user
-      // Actually we should fetch from firestore if not completely available in context
-      // But we can just use onSnapshot on the user document for simplicity
       const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
         if (docSnap.exists()) {
           const d = docSnap.data();
@@ -42,7 +56,9 @@ export function UserDashboard() {
             phoneNumber: d.phoneNumber || "",
             birthDate: d.birthDate || "",
             governorate: d.governorate || "",
-            walletBalance: d.walletBalance || 0
+            walletBalance: d.walletBalance || 0,
+            isVerified: d.isVerified || false,
+            verificationStatus: d.verificationStatus || "none"
           });
         }
       }, (error) => {
@@ -51,6 +67,19 @@ export function UserDashboard() {
       return () => unsubscribe();
     }
   }, [user]);
+
+  useEffect(() => {
+    if (user && profileData.verificationStatus !== "none") {
+      const unsubscribe = onSnapshot(doc(db, "verifications", user.uid), (docSnap) => {
+        if (docSnap.exists()) {
+          setVerificationData(docSnap.data());
+        }
+      }, (error) => {
+        handleFirestoreError(error, OperationType.GET, "verifications");
+      });
+      return () => unsubscribe();
+    }
+  }, [user, profileData.verificationStatus]);
 
   useEffect(() => {
     if (!user) return;
@@ -100,8 +129,46 @@ export function UserDashboard() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, setter: (val: string) => void) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setter(reader.result as string);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const submitVerification = async () => {
+    if (!user || !idFront) return;
+    setVerificationLoading(true);
+    setVerificationMessage("");
+    try {
+      await setDoc(doc(db, "verifications", user.uid), {
+        userId: user.uid,
+        idFrontUrl: idFront,
+        idBackUrl: idBack,
+        selfieUrl: selfie,
+        status: "pending",
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      await updateDoc(doc(db, "users", user.uid), {
+        verificationStatus: "pending"
+      });
+      setVerificationMessage("تم إرسال طلب التوثيق للمراجعة.");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "verifications");
+      setVerificationMessage("حدث خطأ أثناء إرسال الطلب.");
+    } finally {
+      setVerificationLoading(false);
+    }
+  };
+
   const tabs = [
     { id: "profile", name: "الملف الشخصي", icon: <User size={18} /> },
+    { id: "verification", name: "التوثيق", icon: <Shield size={18} /> },
     { id: "saved", name: "الخدمات المحفوظة", icon: <CreditCard size={18} /> },
     { id: "orders", name: "سجل الطلبات", icon: <Clock size={18} /> },
     { id: "wallet", name: "المحفظة", icon: <Wallet size={18} /> },
@@ -175,11 +242,11 @@ export function UserDashboard() {
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                           <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">الاسم الكامل</label>
-                            <input name="displayName" value={profileData.displayName} onChange={handleProfileChange} type="text" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 transition-colors" />
+                            <input name="displayName" value={profileData.displayName} readOnly className="w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none text-slate-500 cursor-not-allowed" />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">رقم الهاتف</label>
-                            <input name="phoneNumber" value={profileData.phoneNumber} onChange={handleProfileChange} type="tel" className="font-en dir-ltr w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 transition-colors" />
+                            <input name="phoneNumber" value={profileData.phoneNumber} readOnly className="font-en dir-ltr w-full bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none text-slate-500 cursor-not-allowed" />
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">المحافظة</label>
@@ -192,7 +259,7 @@ export function UserDashboard() {
                           </div>
                           <div>
                             <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1.5">تاريخ الميلاد</label>
-                            <input name="birthDate" value={profileData.birthDate} onChange={handleProfileChange} type="date" className="w-full font-en bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 transition-colors" />
+                            <input name="birthDate" value={profileData.birthDate} readOnly type="date" className="w-full font-en bg-slate-100 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none text-slate-500 cursor-not-allowed" />
                           </div>
                         </div>
                         
@@ -206,6 +273,149 @@ export function UserDashboard() {
                         </div>
                       </div>
                     </div>
+                  </div>
+                )}
+
+
+                {currentTab === "verification" && (
+                  <div className="space-y-8">
+                    <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                      <div>
+                        <h2 className="text-2xl font-bold mb-1 items-center flex gap-2">
+                          <Shield className="text-indigo-500" /> توثيق الهوية
+                        </h2>
+                        <p className="text-slate-500">قم بتوثيق حسابك للوصول إلى ميزات إضافية وضمان الأمان.</p>
+                      </div>
+                      <div className={`px-4 py-2 rounded-xl border flex items-center gap-2 font-bold ${
+                        profileData.verificationStatus === "verified" ? "bg-emerald-50 border-emerald-100 text-emerald-600 dark:bg-emerald-500/10 dark:border-emerald-500/20 dark:text-emerald-400" :
+                        profileData.verificationStatus === "pending" ? "bg-amber-50 border-amber-100 text-amber-600 dark:bg-amber-500/10 dark:border-amber-500/20 dark:text-amber-400" :
+                        profileData.verificationStatus === "rejected" ? "bg-red-50 border-red-100 text-red-600 dark:bg-red-500/10 dark:border-red-500/20 dark:text-red-400" :
+                        "bg-slate-50 border-slate-100 text-slate-500 dark:bg-slate-700/50 dark:border-slate-700 dark:text-slate-400"
+                      }`}>
+                         {profileData.verificationStatus === "verified" ? <Check size={18} /> : 
+                          profileData.verificationStatus === "pending" ? <Clock size={18} /> : 
+                          profileData.verificationStatus === "rejected" ? <AlertCircle size={18} /> : null}
+                         {profileData.verificationStatus === "verified" ? "تم التوثيق" : 
+                          profileData.verificationStatus === "pending" ? "قيد المراجعة" : 
+                          profileData.verificationStatus === "rejected" ? "مرفوض" : "غير موثق"}
+                      </div>
+                    </div>
+
+                    {profileData.verificationStatus === "none" || profileData.verificationStatus === "rejected" ? (
+                      <div className="space-y-6">
+                        {profileData.verificationStatus === "rejected" && verificationData?.adminComment && (
+                          <div className="p-4 bg-red-50 dark:bg-red-500/10 border border-red-100 dark:border-red-500/20 rounded-2xl flex items-start gap-4">
+                            <AlertCircle className="text-red-500 shrink-0 mt-1" size={20} />
+                            <div>
+                               <p className="font-bold text-red-700 dark:text-red-400 mb-1">سبب الرفض:</p>
+                               <p className="text-sm text-red-600 dark:text-red-300">{verificationData.adminComment}</p>
+                            </div>
+                          </div>
+                        )}
+
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                          {/* ID Front */}
+                          <div className="space-y-3">
+                            <p className="font-bold text-sm">صورة الهوية وجه (أمامي)</p>
+                            <label className={`block aspect-[3/2] border-2 border-dashed rounded-3xl cursor-pointer transition-all overflow-hidden relative group ${
+                              idFront ? "border-indigo-500" : "border-slate-200 dark:border-slate-700 hover:border-indigo-500"
+                            }`}>
+                              {idFront ? (
+                                <img src={idFront} alt="ID Front" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 group-hover:text-indigo-500">
+                                  <FileImage size={32} className="mb-2" />
+                                  <span className="text-xs font-bold">رفع صورة</span>
+                                </div>
+                              )}
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setIdFront)} />
+                            </label>
+                          </div>
+
+                          {/* ID Back */}
+                          <div className="space-y-3">
+                            <p className="font-bold text-sm">صورة الهوية خلف (خلفي)</p>
+                            <label className={`block aspect-[3/2] border-2 border-dashed rounded-3xl cursor-pointer transition-all overflow-hidden relative group ${
+                              idBack ? "border-indigo-500" : "border-slate-200 dark:border-slate-700 hover:border-indigo-500"
+                            }`}>
+                              {idBack ? (
+                                <img src={idBack} alt="ID Back" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 group-hover:text-indigo-500">
+                                  <FileImage size={32} className="mb-2" />
+                                  <span className="text-xs font-bold">رفع صورة</span>
+                                </div>
+                              )}
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setIdBack)} />
+                            </label>
+                          </div>
+
+                          {/* Selfie */}
+                          <div className="space-y-3">
+                            <p className="font-bold text-sm">سلفي مع الهوية</p>
+                            <label className={`block aspect-[3/2] border-2 border-dashed rounded-3xl cursor-pointer transition-all overflow-hidden relative group ${
+                              selfie ? "border-indigo-500" : "border-slate-200 dark:border-slate-700 hover:border-indigo-500"
+                            }`}>
+                              {selfie ? (
+                                <img src={selfie} alt="Selfie" className="w-full h-full object-cover" />
+                              ) : (
+                                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-400 group-hover:text-indigo-500">
+                                  <Camera size={32} className="mb-2" />
+                                  <span className="text-xs font-bold">التقاط / رفع صورة</span>
+                                </div>
+                              )}
+                              <input type="file" accept="image/*" className="hidden" onChange={(e) => handleFileChange(e, setSelfie)} />
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="p-4 bg-indigo-50 dark:bg-indigo-500/10 border border-indigo-100 dark:border-indigo-500/20 rounded-2xl flex items-start gap-4">
+                           <AlertCircle className="text-indigo-500 shrink-0 mt-1" size={20} />
+                           <p className="text-xs text-indigo-700 dark:text-indigo-300 leading-relaxed">
+                             يرجى التأكد من أن جميع الصور واضحة، وأن ضوء الغرفة مناسب، وبأن جميع حواف بطاقة الهوية ظاهرة في الإطار. سيتم معالجة طلبك خلال 24-48 ساعة عمل.
+                           </p>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-4">
+                           <p className={`text-sm font-bold ${verificationMessage.includes("نجاح") || verificationMessage.includes("تم") ? 'text-emerald-500' : 'text-red-500'}`}>
+                              {verificationMessage}
+                           </p>
+                           <button 
+                             onClick={submitVerification}
+                             disabled={verificationLoading || !idFront}
+                             className="bg-indigo-500 hover:bg-indigo-600 text-white px-8 py-3 rounded-2xl font-bold transition-all disabled:opacity-50 flex items-center gap-2 shadow-lg shadow-indigo-500/20"
+                           >
+                              {verificationLoading ? <Loader2 className="animate-spin" size={20} /> : <Shield size={20} />}
+                              ارسال للتوثيق
+                           </button>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex flex-col items-center justify-center py-12 text-center">
+                        <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-6 shadow-xl ${
+                          profileData.verificationStatus === "verified" ? "bg-emerald-500 text-white" : "bg-amber-100 text-amber-500"
+                        }`}>
+                           {profileData.verificationStatus === "verified" ? <Check size={40} /> : <Clock size={40} />}
+                        </div>
+                        <h3 className="text-xl font-bold mb-2">
+                           {profileData.verificationStatus === "verified" ? "حسابك موثق بالكامل" : "طلبك قيد المراجعة"}
+                        </h3>
+                        <p className="text-slate-500 max-w-sm">
+                           {profileData.verificationStatus === "verified" ? "شكراً لتوثيق هويتك. يمكنك الآن الاستمتاع بكافة الميزات والحماية الإضافية لحسابك." : "نحن نقوم الآن بمراجعة مستنداتك الثبوتية. سيتم إخطارك فور انتهاء العملية."}
+                        </p>
+                        
+                        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-4 w-full max-w-lg">
+                           <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 text-right">
+                              <p className="text-[10px] text-slate-500 mb-1">رقم الطلب</p>
+                              <p className="font-en text-sm font-bold tracking-wider">{user.uid.substring(0, 10).toUpperCase()}</p>
+                           </div>
+                           <div className="p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700 text-right">
+                              <p className="text-[10px] text-slate-500 mb-1">آخر تحديث</p>
+                              <p className="text-sm font-bold">{new Date(verificationData?.updatedAt?.toMillis() || Date.now()).toLocaleDateString('ar-SY')}</p>
+                           </div>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 )}
 
@@ -245,10 +455,18 @@ export function UserDashboard() {
                                    {tx.status}
                                  </span>
                                </div>
-                               <div className="flex flex-wrap gap-3 text-sm text-slate-500">
+                                <div className="flex flex-wrap gap-3 text-sm text-slate-500 items-center">
                                  <span className="flex items-center gap-1 font-medium">{tx.company}</span>
                                  <span>•</span>
-                                 <span className="font-en text-xs">{tx.id.slice(0, 8).toUpperCase()}</span>
+                                 <div className="flex items-center gap-1 bg-slate-100 dark:bg-slate-800 px-2 py-0.5 rounded-md border border-slate-200 dark:border-slate-700">
+                                   <span className="font-en text-[10px] tracking-wider">{tx.id.toUpperCase()}</span>
+                                   <button 
+                                      onClick={() => copyToClipboard(tx.id)}
+                                      className="p-1 hover:text-indigo-500 transition-colors"
+                                   >
+                                     {copiedId === tx.id ? <Check size={12} className="text-emerald-500" /> : <Copy size={12} />}
+                                   </button>
+                                 </div>
                                  <span>•</span>
                                  <span>{new Date(tx.createdAt?.toMillis() || Date.now()).toLocaleDateString('ar-SY', { year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>
                                </div>

@@ -1,34 +1,67 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import React from "react";
-import { Check, ChevronLeft, GripVertical, Image, Plus, Trash2, X } from "lucide-react";
+import { Check, ChevronLeft, Image as ImageIcon, Plus, Trash2, X, Loader2 } from "lucide-react";
 import { motion } from "motion/react";
-import { collection, doc, setDoc, serverTimestamp } from "firebase/firestore";
+import { doc, getDoc, updateDoc, serverTimestamp } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useParams } from "react-router-dom";
 
-export function AdminServiceAdd() {
+export function AdminServiceEdit() {
+  const { id } = useParams();
   const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [initialLoading, setInitialLoading] = useState(true);
   const navigate = useNavigate();
 
   // Form State
   const [name, setName] = useState("");
-  const [company, setCompany] = useState("سيريا تيل");
+  const [company, setCompany] = useState("");
   const [priceType, setPriceType] = useState<"fixed" | "dynamic">("fixed");
   const [price, setPrice] = useState<string>("");
   const [imageUrl, setImageUrl] = useState("");
   const [iconType, setIconType] = useState("wifi");
   const [iconColor, setIconColor] = useState("indigo");
-  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [fields, setFields] = useState<{name: string, label: string, type: 'text' | 'password' | 'number', required: boolean}[]>([]);
+
+  useEffect(() => {
+    async function fetchService() {
+      if (!id) return;
+      try {
+        const sDoc = await getDoc(doc(db, "services", id));
+        if (sDoc.exists()) {
+          const data = sDoc.data();
+          setName(data.name || "");
+          setCompany(data.company || "");
+          setPriceType(data.dynamicPrice ? "dynamic" : "fixed");
+          setPrice(data.price?.toString() || "");
+          setImageUrl(data.imageUrl || "");
+          setIconType(data.iconType || "wifi");
+          setFields(data.fields || []);
+          
+          // Detect color from class names if possible
+          if (data.iconTextClass?.includes("blue")) setIconColor("blue");
+          else if (data.iconTextClass?.includes("red")) setIconColor("red");
+          else if (data.iconTextClass?.includes("emerald")) setIconColor("emerald");
+          else if (data.iconTextClass?.includes("yellow")) setIconColor("yellow");
+          else if (data.iconTextClass?.includes("purple")) setIconColor("purple");
+          else setIconColor("indigo");
+        }
+      } catch (error) {
+        handleFirestoreError(error, OperationType.GET, "services");
+      } finally {
+        setInitialLoading(false);
+      }
+    }
+    fetchService();
+  }, [id]);
 
   const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      if (file.size > 200 * 1024) { // Limit to 200KB for Base64 storage
+      if (file.size > 200 * 1024) {
         alert("حجم الصورة كبير جداً، يرجى اختيار صورة أقل من 200 كيلوبايت.");
         return;
       }
-      setImageFile(file);
       const reader = new FileReader();
       reader.onloadend = () => {
         setImageUrl(reader.result as string);
@@ -38,14 +71,9 @@ export function AdminServiceAdd() {
   };
 
   const removeImage = () => {
-    setImageFile(null);
     setImageUrl("");
   };
   
-  const [fields, setFields] = useState<{name: string, label: string, type: 'text' | 'password' | 'number', required: boolean}[]>([
-    { name: "account_number", label: "رقم الاشتراك", type: "text", required: true }
-  ]);
-
   const addField = () => {
     setFields([...fields, { name: "", label: "حقل جديد", type: "text", required: true }]);
   };
@@ -61,7 +89,21 @@ export function AdminServiceAdd() {
     setFields(newFields);
   };
 
+  const handleDelete = async () => {
+    if (!id || !window.confirm("هل أنت متأكد من حذف هذه الخدمة نهائياً؟")) return;
+    setLoading(true);
+    try {
+      await deleteDoc(doc(db, "services", id));
+      navigate("/admin/services");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.DELETE, "services");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSave = async () => {
+    if (!id) return;
     setLoading(true);
     try {
       const colorMap: Record<string, { bg: string, text: string }> = {
@@ -75,8 +117,7 @@ export function AdminServiceAdd() {
 
       const theme = colorMap[iconColor] || colorMap.indigo;
 
-      const serviceRef = doc(collection(db, "services"));
-      await setDoc(serviceRef, {
+      await updateDoc(doc(db, "services", id), {
         name,
         company,
         price: priceType === "fixed" ? Number(price) : 0,
@@ -86,23 +127,45 @@ export function AdminServiceAdd() {
         iconBgClass: theme.bg,
         iconTextClass: theme.text,
         fields,
-        isActive: true,
-        createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
       navigate("/admin/services");
     } catch (error) {
-      handleFirestoreError(error, OperationType.CREATE, "services");
+      handleFirestoreError(error, OperationType.UPDATE, "services");
     } finally {
       setLoading(false);
     }
   };
 
+  if (initialLoading) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[400px]">
+        <Loader2 className="w-10 h-10 text-indigo-500 animate-spin mb-4" />
+        <p className="text-slate-500">جاري تحميل بيانات الخدمة...</p>
+      </div>
+    );
+  }
+
   return (
     <div className="max-w-5xl mx-auto">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">إضافة خدمة جديدة</h1>
-        <p className="text-slate-500 dark:text-slate-400">اتبع الخطوات لإعداد خدمة وتخصيص الحقول للعملاء.</p>
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">تعديل الخدمة</h1>
+          <p className="text-slate-500 dark:text-slate-400">تحديث بيانات الخدمة والحقول والأسعار.</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <button 
+            onClick={handleDelete}
+            disabled={loading}
+            className="p-2 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 rounded-xl transition-colors border border-transparent hover:border-red-100 dark:hover:border-red-500/20"
+            title="حذف الخدمة"
+          >
+            <Trash2 size={24} />
+          </button>
+          <button onClick={() => navigate("/admin/services")} className="p-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+            <ChevronLeft className="rotate-180" size={24} />
+          </button>
+        </div>
       </div>
 
       {/* Progress Bar */}
@@ -138,16 +201,16 @@ export function AdminServiceAdd() {
         {step === 1 && (
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="space-y-6 max-w-2xl">
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">اسم الشركة</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">اسم الشركة</label>
               <input value={company} onChange={e => setCompany(e.target.value)} type="text" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" placeholder="مثال: سيريا تيل" />
             </div>
             <div>
-              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">اسم الخدمة</label>
+              <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">اسم الخدمة</label>
               <input value={name} onChange={e => setName(e.target.value)} type="text" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" placeholder="مثال: باقة إنترنت 50GB" />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">نوع السعر</label>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">نوع السعر</label>
                 <select value={priceType} onChange={(e: any) => setPriceType(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500">
                   <option value="fixed">ثابت</option>
                   <option value="dynamic">متغير (حسب الفاتورة)</option>
@@ -155,7 +218,7 @@ export function AdminServiceAdd() {
               </div>
               {priceType === "fixed" && (
                 <div>
-                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">السعر (ل.س)</label>
+                  <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">السعر (ل.س)</label>
                   <input value={price} onChange={e => setPrice(e.target.value)} type="number" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 font-en" placeholder="25000" />
                 </div>
               )}
@@ -166,12 +229,12 @@ export function AdminServiceAdd() {
               <div className="flex flex-col gap-4">
                 {!imageUrl ? (
                   <label className="w-full h-32 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-2xl flex flex-col items-center justify-center gap-2 cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-900 transition-colors">
-                    <Image size={32} className="text-slate-400" />
+                    <ImageIcon size={32} className="text-slate-400" />
                     <span className="text-xs text-slate-500">انقر لرفع صورة الخدمة (أقل من 200KB)</span>
                     <input type="file" accept="image/*" className="hidden" onChange={handleImageChange} />
                   </label>
                 ) : (
-                  <div className="relative w-full h-32 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 group">
+                  <div className="relative w-full h-32 rounded-2xl overflow-hidden border border-slate-200 dark:border-slate-700 group md:w-48">
                     <img src={imageUrl} alt="Preview" className="w-full h-full object-cover" />
                     <button 
                       onClick={removeImage}
@@ -186,7 +249,7 @@ export function AdminServiceAdd() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">نوع الأيقونة</label>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">نوع الأيقونة</label>
                 <select value={iconType} onChange={(e: any) => setIconType(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500">
                   <option value="wifi">إنترنت (Wifi)</option>
                   <option value="phone">هاتف (Phone)</option>
@@ -196,7 +259,7 @@ export function AdminServiceAdd() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">لون الأيقونة</label>
+                <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">لون الأيقونة</label>
                 <select value={iconColor} onChange={(e: any) => setIconColor(e.target.value)} className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500">
                   <option value="indigo">نيلي (Indigo)</option>
                   <option value="blue">أزرق (Blue)</option>
@@ -223,7 +286,7 @@ export function AdminServiceAdd() {
             <div className="space-y-4">
               {fields.map((field, index) => (
                <div key={index} className="bg-slate-50 dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-700">
-                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end text-right">
                    <div>
                      <label className="block text-xs font-bold text-slate-600 dark:text-slate-400 mb-1">اسم الحقل البرمجي</label>
                      <input value={field.name} onChange={e => updateField(index, 'name', e.target.value)} type="text" className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 text-sm" placeholder="account_num" />
@@ -257,13 +320,13 @@ export function AdminServiceAdd() {
         {step === 3 && (
           <motion.div initial={{ opacity: 0, x: -20 }} animate={{ opacity: 1, x: 0 }} className="flex flex-col lg:flex-row gap-8">
             <div className="flex-1">
-               <h3 className="text-lg font-bold mb-4">معاينة الخدمة</h3>
+               <h3 className="text-lg font-bold mb-4 text-right">معاينة التغييرات</h3>
                <div className="p-6 bg-slate-50 dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-700">
                   <h4 className="text-xl font-bold mb-6 text-center">{company} - {name}</h4>
                   <div className="space-y-4 mb-6">
                     {fields.map((f, i) => (
                       <div key={i}>
-                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">
+                        <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2 text-right">
                           {f.label} {f.required && <span className="text-red-500">*</span>}
                         </label>
                         <input type={f.type === 'password' ? 'password' : f.type === 'number' ? 'number' : 'text'} disabled className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 opacity-70" placeholder={`أدخل ${f.label}`} />
@@ -275,20 +338,20 @@ export function AdminServiceAdd() {
                   </button>
                </div>
             </div>
-            <div className="w-full lg:w-64">
+            <div className="w-full lg:w-64 text-right">
                <h3 className="text-lg font-bold mb-4">ملخص</h3>
                <ul className="space-y-4 text-sm">
                  <li className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-2">
-                   <span className="text-slate-500">الشركة</span>
-                   <span className="font-bold">{company}</span>
+                    <span className="font-bold">{company}</span>
+                    <span className="text-slate-500">الشركة</span>
                  </li>
                  <li className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-2">
-                   <span className="text-slate-500">عدد الحقول</span>
                    <span className="font-bold">{fields.length}</span>
+                   <span className="text-slate-500">عدد الحقول</span>
                  </li>
-                 <li className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-2">
-                   <span className="text-slate-500">السعر</span>
-                   <span className="font-bold font-en">{priceType === 'fixed' ? `${Number(price).toLocaleString()} SP` : "Variable"}</span>
+                 <li className="flex justify-between border-b border-slate-100 dark:border-slate-700 pb-2 font-en">
+                   <span className="font-bold">{priceType === 'fixed' ? `${Number(price).toLocaleString()} SP` : "Variable"}</span>
+                   <span className="text-slate-500 font-sans">السعر</span>
                  </li>
                </ul>
             </div>
@@ -316,8 +379,8 @@ export function AdminServiceAdd() {
             <ChevronLeft size={18} />
           </button>
         ) : (
-          <button onClick={handleSave} disabled={loading} className="px-8 py-2.5 bg-emerald-500 hover:bg-emerald-600 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-emerald-500/20 disabled:opacity-50">
-            {loading ? "جاري الحفظ..." : "حفظ الخدمة"}
+          <button onClick={handleSave} disabled={loading} className="px-8 py-2.5 bg-indigo-500 hover:bg-indigo-600 text-white rounded-xl font-bold flex items-center gap-2 transition-colors shadow-lg shadow-indigo-500/20 disabled:opacity-50">
+            {loading ? "جاري التحديث..." : "تحديث الخدمة"}
             {!loading && <Check size={18} />}
           </button>
         )}
@@ -325,4 +388,3 @@ export function AdminServiceAdd() {
     </div>
   );
 }
-
