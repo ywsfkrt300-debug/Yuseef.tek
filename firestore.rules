@@ -1,0 +1,164 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- Helpers ---
+    function isVerified() { return request.auth != null; } // In production: return request.auth != null && request.auth.token.email_verified == true;
+
+    function isAdmin() {
+      return isVerified() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        request.auth.token.email == 'ywsfkrt300@gmail.com' ||
+        (exists(/databases/$(database)/documents/users/$(request.auth.uid)) && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin')
+      );
+    }
+    
+    function isValidId(id) { 
+      return id is string && id.size() > 0 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); 
+    }
+    
+    function incoming() { return request.resource.data; }
+    function existing() { return resource.data; }
+
+    // --- Collections ---
+
+    match /admins/{uid} {
+      allow read: if isVerified();
+      allow write: if isAdmin();
+    }
+
+    match /users/{userId} {
+      allow get: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+      // Admin list
+      allow list: if isAdmin();
+
+      allow create: if isVerified() && 
+                    isValidId(userId) && 
+                    request.auth.uid == userId && 
+                    incoming().keys().hasAll(['email', 'role', 'walletBalance', 'createdAt', 'updatedAt', 'phoneNumber', 'birthDate', 'governorate']) &&
+                    incoming().keys().hasOnly(['email', 'role', 'walletBalance', 'createdAt', 'updatedAt', 'displayName', 'phoneNumber', 'birthDate', 'governorate']) &&
+                    incoming().email is string && incoming().email.size() <= 100 &&
+                    incoming().role == 'user' &&
+                    incoming().walletBalance == 0 &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time &&
+                    ( !('displayName' in incoming()) || (incoming().displayName is string && incoming().displayName.size() <= 100) ) &&
+                    incoming().phoneNumber is string && incoming().phoneNumber.size() <= 20 &&
+                    incoming().birthDate is string && incoming().birthDate.size() <= 20 &&
+                    incoming().governorate is string && incoming().governorate.size() <= 50;
+
+      allow update: if isVerified() && isValidId(userId) && (
+        isAdmin() ||
+        (request.auth.uid == userId && 
+         incoming().updatedAt == request.time &&
+         incoming().diff(existing()).affectedKeys().hasOnly(['displayName', 'phoneNumber', 'birthDate', 'governorate', 'updatedAt', 'role']) &&
+         incoming().walletBalance == existing().walletBalance &&
+         incoming().createdAt == existing().createdAt &&
+         incoming().email == existing().email &&
+         (!('phoneNumber' in incoming()) || (incoming().phoneNumber is string && incoming().phoneNumber.size() <= 20)) &&
+         (!('birthDate' in incoming()) || (incoming().birthDate is string && incoming().birthDate.size() <= 20)) &&
+         (!('governorate' in incoming()) || (incoming().governorate is string && incoming().governorate.size() <= 50))
+        )
+      );
+
+      // Subcollection: saved_services
+      match /saved_services/{savedServiceId} {
+        allow get: if isVerified() && isValidId(userId) && isValidId(savedServiceId) && (request.auth.uid == userId || isAdmin());
+        allow list: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+        
+        allow create: if isVerified() && 
+                      isValidId(userId) && 
+                      isValidId(savedServiceId) && 
+                      request.auth.uid == userId &&
+                      incoming().keys().hasAll(['userId', 'serviceId', 'createdAt', 'updatedAt']) &&
+                      incoming().keys().hasOnly(['userId', 'serviceId', 'createdAt', 'updatedAt', 'customName', 'fieldsData']) &&
+                      incoming().userId == userId &&
+                      incoming().serviceId is string && incoming().serviceId.size() > 0 && incoming().serviceId.size() <= 128 &&
+                      incoming().createdAt == request.time &&
+                      incoming().updatedAt == request.time &&
+                      (!('customName' in incoming()) || (incoming().customName is string && incoming().customName.size() <= 100)) &&
+                      (!('fieldsData' in incoming()) || incoming().fieldsData is map);
+                      
+        allow update: if isVerified() && isValidId(userId) && isValidId(savedServiceId) && (
+          isAdmin() ||
+          (request.auth.uid == userId && 
+           incoming().updatedAt == request.time &&
+           incoming().diff(existing()).affectedKeys().hasOnly(['customName', 'fieldsData', 'updatedAt']) &&
+           (!('customName' in incoming()) || (incoming().customName is string && incoming().customName.size() <= 100)) &&
+           (!('fieldsData' in incoming()) || incoming().fieldsData is map))
+        );
+        allow delete: if isVerified() && isValidId(userId) && isValidId(savedServiceId) && (request.auth.uid == userId || isAdmin());
+      }
+      
+      // Subcollection: notifications
+      match /notifications/{notificationId} {
+        allow get: if isVerified() && isValidId(userId) && isValidId(notificationId) && (request.auth.uid == userId || isAdmin());
+        allow list: if isVerified() && isValidId(userId) && (request.auth.uid == userId || isAdmin());
+        
+        allow create: if isAdmin() &&
+                      isValidId(userId) &&
+                      isValidId(notificationId) &&
+                      incoming().keys().hasAll(['userId', 'title', 'message', 'isRead', 'createdAt']) &&
+                      incoming().keys().hasOnly(['userId', 'title', 'message', 'isRead', 'createdAt']) &&
+                      incoming().userId == userId &&
+                      incoming().title is string && incoming().title.size() <= 100 &&
+                      incoming().message is string && incoming().message.size() <= 600 &&
+                      incoming().isRead is bool &&
+                      incoming().createdAt == request.time;
+        
+        allow update: if isVerified() && isValidId(userId) && isValidId(notificationId) && (
+          isAdmin() ||
+          (request.auth.uid == userId && 
+           incoming().diff(existing()).affectedKeys().hasOnly(['isRead']) &&
+           incoming().isRead is bool)
+        );
+        allow delete: if isAdmin();
+      }
+    }
+
+    match /services/{serviceId} {
+      allow get: if isValidId(serviceId);
+      allow list: if true; // Assuming any authenticated user can list active services
+
+      allow create, update: if isAdmin() && isValidId(serviceId) &&
+                            incoming().keys().hasAll(['name', 'company', 'isActive', 'createdAt', 'updatedAt']) &&
+                            incoming().name is string && incoming().name.size() <= 100 &&
+                            incoming().company is string && incoming().company.size() <= 100 &&
+                            (!('price' in incoming()) || incoming().price is number) &&
+                            (!('dynamicPrice' in incoming()) || incoming().dynamicPrice is bool) &&
+                            (!('iconType' in incoming()) || incoming().iconType is string) &&
+                            (!('iconBgClass' in incoming()) || incoming().iconBgClass is string) &&
+                            (!('iconTextClass' in incoming()) || incoming().iconTextClass is string) &&
+                            (!('fields' in incoming()) || incoming().fields is list) &&
+                            incoming().isActive is bool;
+      
+      allow delete: if isAdmin() && isValidId(serviceId);
+    }
+
+    match /transactions/{transactionId} {
+      allow get: if true;
+      allow list: if true;
+
+      allow create: if isVerified() && 
+                    isValidId(transactionId) &&
+                    request.auth.uid == incoming().userId &&
+                    incoming().keys().hasAll(['userId', 'serviceId', 'serviceName', 'company', 'amount', 'status', 'createdAt', 'updatedAt', 'requestData']) &&
+                    incoming().keys().hasOnly(['userId', 'serviceId', 'serviceName', 'company', 'amount', 'status', 'createdAt', 'updatedAt', 'requestData', 'errorMsg']) &&
+                    incoming().serviceId is string && incoming().serviceId.size() > 0 && incoming().serviceId.size() <= 128 &&
+                    incoming().serviceName is string && incoming().serviceName.size() <= 200 &&
+                    incoming().company is string && incoming().company.size() <= 200 &&
+                    incoming().amount is number && incoming().amount >= 0 &&
+                    incoming().status in ['pending', 'قيد المراجعة', 'مكتمل', 'مرفوض'] &&
+                    incoming().requestData is map &&
+                    incoming().createdAt == request.time &&
+                    incoming().updatedAt == request.time;
+      
+      allow update: if isVerified() && isValidId(transactionId) && isAdmin();
+      
+      allow delete: if false; 
+    }
+  }
+}

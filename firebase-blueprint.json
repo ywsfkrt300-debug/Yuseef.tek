@@ -1,0 +1,113 @@
+{
+  "entities": {
+    "user": {
+      "title": "User",
+      "description": "User profile with role and wallet",
+      "type": "object",
+      "properties": {
+        "displayName": { "type": "string" },
+        "email": { "type": "string" },
+        "phoneNumber": { "type": "string" },
+        "role": { "type": "string", "enum": ["user", "admin"] },
+        "walletBalance": { "type": "number" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["email", "role", "walletBalance", "createdAt", "updatedAt"]
+    },
+    "service": {
+      "title": "Service",
+      "description": "Available financial service/product",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "company": { "type": "string" },
+        "price": { "type": "number" },
+        "dynamicPrice": { "type": "boolean" },
+        "iconType": { "type": "string" },
+        "iconBgClass": { "type": "string" },
+        "iconTextClass": { "type": "string" },
+        "fields": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": { "type": "string" },
+              "label": { "type": "string" },
+              "type": { "type": "string", "enum": ["text", "password", "number"] },
+              "required": { "type": "boolean" }
+            }
+          }
+        },
+        "isActive": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "company", "isActive", "createdAt", "updatedAt"]
+    },
+    "saved_service": {
+      "title": "Saved Service",
+      "description": "User's saved connection to a service for quick access",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "customName": { "type": "string" },
+        "fieldsData": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "serviceId", "createdAt", "updatedAt"]
+    },
+    "transaction": {
+      "title": "Transaction",
+      "description": "A payment/recharge order",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "serviceId": { "type": "string" },
+        "amount": { "type": "number" },
+        "status": { "type": "string", "enum": ["pending", "completed", "failed"] },
+        "fieldsData": { "type": "object" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "serviceId", "amount", "status", "createdAt", "updatedAt"]
+    },
+    "notification": {
+      "title": "Notification",
+      "description": "Alert or update for the user",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "message", "isRead", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/user" },
+      "description": "User profiles"
+    },
+    "/services/{serviceId}": {
+      "schema": { "$ref": "#/entities/service" },
+      "description": "List of available services managed by admins"
+    },
+    "/users/{userId}/saved_services/{savedServiceId}": {
+      "schema": { "$ref": "#/entities/saved_service" },
+      "description": "Quick access services saved by user"
+    },
+    "/transactions/{transactionId}": {
+      "schema": { "$ref": "#/entities/transaction" },
+      "description": "Records of payment transactions"
+    },
+    "/users/{userId}/notifications/{notificationId}": {
+      "schema": { "$ref": "#/entities/notification" },
+      "description": "User notifications"
+    }
+  }
+}
