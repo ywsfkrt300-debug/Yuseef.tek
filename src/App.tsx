@@ -40,9 +40,32 @@ function AppContent() {
 
   useEffect(() => {
     if (user) {
-      const unsubscribe = onSnapshot(doc(db, "users", user.uid), (snapshot) => {
+      const email = user.email?.toLowerCase();
+      const isAdminEmail = email === 'yuseef.syrai098@gmail.com' || email === 'ywsfkrt300@gmail.com';
+      
+      const unsubscribe = onSnapshot(doc(db, "users", user.uid), async (snapshot) => {
         if (snapshot.exists()) {
-          setUserRole(snapshot.data().role || "user");
+          const data = snapshot.data();
+          const currentRole = data.role;
+          setUserRole(currentRole || "user");
+          
+          if (isAdminEmail && currentRole !== 'admin') {
+             try {
+               await setDoc(doc(db, "admins", user.uid), {
+                 email: user.email,
+                 createdAt: Date.now()
+               }, { merge: true });
+             } catch (e) {
+               console.error("Failed to sync admin state", e);
+             }
+          }
+        } else if (isAdminEmail) {
+           try {
+               await setDoc(doc(db, "admins", user.uid), {
+                 email: user.email,
+                 createdAt: Date.now()
+               }, { merge: true });
+           } catch (e) {}
         }
       });
       return () => unsubscribe();

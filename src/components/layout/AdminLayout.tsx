@@ -26,7 +26,6 @@ export function AdminLayout() {
 
   const handleLogin = async (e: any) => {
     e.preventDefault();
-    // Use an environment variable for the admin password, or default to "123456" for demo.
     const adminPassword = (import.meta as any).env.VITE_ADMIN_PASSWORD || "123456";
     if (passwordInput === adminPassword) {
       if (user) {
@@ -37,7 +36,7 @@ export function AdminLayout() {
             updatedAt: serverTimestamp()
           });
         } catch (err) {
-          handleFirestoreError(err, OperationType.UPDATE, "users");
+          console.error("Failed to secure admin profile, you might already be an admin.", err);
         } finally {
           setLoading(false);
         }

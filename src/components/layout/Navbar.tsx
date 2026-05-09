@@ -78,7 +78,7 @@ export function Navbar() {
     { name: t("nav.help"), path: "/#help" },
   ];
 
-  const isAdmin = user?.email === 'yuseef.syrai098@gmail.com' || user?.email === 'ywsfkrt300@gmail.com';
+  const isAdmin = user?.email?.toLowerCase() === 'yuseef.syrai098@gmail.com' || user?.email?.toLowerCase() === 'ywsfkrt300@gmail.com';
 
   return (
     <nav

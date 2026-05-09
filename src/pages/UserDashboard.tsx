@@ -368,12 +368,15 @@ export function UserDashboard() {
         updatedAt: serverTimestamp()
       });
       await updateDoc(doc(db, "users", user.uid), {
-        verificationStatus: "pending"
+        verificationStatus: "pending",
+        updatedAt: serverTimestamp()
       });
       toast.success("تم إرسال طلب التوثيق للمراجعة.");
       setVerificationMessage("تم إرسال طلب التوثيق للمراجعة.");
+      handleTabChange("profile");
     } catch (error) {
-      handleFirestoreError(error, OperationType.WRITE, "verifications");
+      console.error(error);
+      toast.error("حدث خطأ أثناء إرسال الطلب.");
       setVerificationMessage("حدث خطأ أثناء إرسال الطلب.");
     } finally {
       setVerificationLoading(false);
