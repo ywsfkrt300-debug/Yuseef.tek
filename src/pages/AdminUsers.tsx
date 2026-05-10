@@ -16,6 +16,7 @@ export function AdminUsers() {
   const [addBalanceStep, setAddBalanceStep] = useState(1);
   const [dailyLimit, setDailyLimit] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
+  const [cardStatus, setCardStatus] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [viewType, setViewType] = useState<"table" | "cards">("cards");
   const [flippedCards, setFlippedCards] = useState<Record<string, boolean>>({});
@@ -126,6 +127,26 @@ export function AdminUsers() {
       setCardExpiry("");
       if (selectedUser?.id === user.id) {
         setSelectedUser({...selectedUser, cardExpiryDate: cardExpiry});
+      }
+    } catch (error) {
+       handleFirestoreError(error, OperationType.UPDATE, "users");
+    } finally {
+       setIsUpdating(false);
+    }
+  };
+
+  const updateCardStatus = async (user: any) => {
+    if (!cardStatus) return;
+    setIsUpdating(true);
+    try {
+      await updateDoc(doc(db, "users", user.id), {
+        cardStatus: cardStatus,
+        updatedAt: serverTimestamp()
+      });
+      toast.success("تم تحديث حالة البطاقة بنجاح");
+      setCardStatus("");
+      if (selectedUser?.id === user.id) {
+        setSelectedUser({...selectedUser, cardStatus: cardStatus});
       }
     } catch (error) {
        handleFirestoreError(error, OperationType.UPDATE, "users");
@@ -488,6 +509,29 @@ export function AdminUsers() {
                        </button>
                      </div>
                      <p className="text-xs text-slate-500 mt-2">لتحديث التاريخ المعروض على واجهة بطاقة المستخدم (Card Expiry).</p>
+                   </div>
+
+                   <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">حالة البطاقة</label>
+                     <div className="flex gap-2">
+                       <select 
+                         value={cardStatus !== "" ? cardStatus : (selectedUser.cardStatus || "active")} 
+                         onChange={(e) => setCardStatus(e.target.value)}
+                         className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors"
+                       >
+                         <option value="active">فعالة (Active)</option>
+                         <option value="expired">منتهية الصلاحية (Expired)</option>
+                         <option value="blocked">محظورة (Blocked)</option>
+                       </select>
+                       <button 
+                          onClick={() => updateCardStatus(selectedUser)}
+                          disabled={isUpdating}
+                          className="bg-slate-800 hover:bg-slate-900 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white px-6 rounded-xl font-bold transition-all disabled:opacity-50"
+                       >
+                         تحديث
+                       </button>
+                     </div>
+                     <p className="text-xs text-slate-500 mt-2">تحديث حالة البطاقة المعروضة للمستخدم.</p>
                    </div>
                  </div>
 

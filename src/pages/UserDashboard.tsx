@@ -37,6 +37,7 @@ export function UserDashboard() {
     verificationStatus: "none",
     cardExpiryDate: "",
     cardSignature: "",
+    cardStatus: "active",
     email: "",
     settings: {
       darkMode: false,
@@ -115,6 +116,7 @@ export function UserDashboard() {
             verificationStatus: d.verificationStatus || "none",
             cardExpiryDate: d.cardExpiryDate || "12/28",
             cardSignature: d.cardSignature || "",
+            cardStatus: d.cardStatus || "active",
             settings: d.settings || {
               darkMode: false,
               autoSave: true,
@@ -554,11 +556,40 @@ export function UserDashboard() {
     return <div className="min-h-screen flex items-center justify-center">الرجاء تسجيل الدخول أولاً.</div>;
   }
 
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    const lang = profileData.settings.language;
+
+    if (lang === "en") {
+      if (hour < 12) return "Good morning";
+      if (hour < 17) return "Good afternoon";
+      return "Good evening";
+    } else {
+      if (hour < 12) return "صباح الخير";
+      if (hour < 17) return "مساء الخير";
+      return "مساء الخير";
+    }
+  };
+
+  const greeting = getGreeting();
+  const userName = profileData.displayName?.split(" ")[0] || user.displayName?.split(" ")[0] || (profileData.settings.language === 'en' ? "Guest" : "زائر");
+
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pt-24 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
-        <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-8">حسابي</h1>
+        <div className="mb-8 flex items-center justify-between">
+          <div>
+            <h1 className="text-3xl font-bold text-slate-900 dark:text-white mb-2 flex items-center gap-2">
+              {greeting}، <span className="text-indigo-600 dark:text-indigo-400">{userName}</span> <span className="animate-wave origin-bottom-right inline-block">👋</span>
+            </h1>
+            <p className="text-slate-500 dark:text-slate-400 text-sm">
+              {profileData.settings.language === 'en' 
+                ? "Welcome back to your dashboard. Here is what is happening with your account today." 
+                : "أهلاً بك مجدداً في لوحة التحكم الخاصة بك. إليك ما يحدث في حسابك اليوم."}
+            </p>
+          </div>
+        </div>
 
         <div className="flex flex-col md:flex-row gap-8">
           {/* Sidebar */}
@@ -720,7 +751,17 @@ export function UserDashboard() {
                                       className="absolute inset-0 w-full h-full"
                                       style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
                                     >
-                                      <div className="w-full h-full rounded-[24px] p-5 flex flex-col justify-between overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-br from-[#0F172A] to-[#1E3A8A]">
+                                      <div className={`w-full h-full rounded-[24px] p-5 flex flex-col justify-between overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-br from-[#0F172A] to-[#1E3A8A] ${profileData.cardStatus !== 'active' ? 'grayscale opacity-70' : ''}`}>
+                                         {profileData.cardStatus === 'blocked' && (
+                                            <div className="absolute inset-0 bg-red-900/30 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                                              <span className="bg-red-500 text-white px-4 py-1.5 rounded-lg font-bold tracking-widest uppercase border border-red-400">{profileData.settings.language === 'en' ? 'Blocked' : 'محظورة'}</span>
+                                            </div>
+                                         )}
+                                         {profileData.cardStatus === 'expired' && (
+                                            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                                              <span className="bg-slate-700 text-white px-4 py-1.5 rounded-lg font-bold tracking-widest uppercase border border-slate-500">{profileData.settings.language === 'en' ? 'Expired' : 'منتهية الصلاحية'}</span>
+                                            </div>
+                                         )}
                                          <div className="absolute -top-[30%] -right-[20%] w-[200px] h-[200px] bg-white/5 rounded-full pointer-events-none"></div>
                                          <div className="absolute -bottom-[20%] -left-[10%] w-[150px] h-[150px] bg-white/5 rounded-full pointer-events-none"></div>
 
@@ -1365,7 +1406,17 @@ export function UserDashboard() {
                             className="absolute inset-0 w-full h-full"
                             style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
                           >
-                            <div className="w-full h-full rounded-[24px] p-5 flex flex-col justify-between overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-br from-[#0F172A] to-[#1E3A8A]">
+                            <div className={`w-full h-full rounded-[24px] p-5 flex flex-col justify-between overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-br from-[#0F172A] to-[#1E3A8A] ${profileData.cardStatus !== 'active' ? 'grayscale opacity-70' : ''}`}>
+                               {profileData.cardStatus === 'blocked' && (
+                                  <div className="absolute inset-0 bg-red-900/30 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                                    <span className="bg-red-500 text-white px-4 py-1.5 rounded-lg font-bold tracking-widest uppercase border border-red-400">{profileData.settings.language === 'en' ? 'Blocked' : 'محظورة'}</span>
+                                  </div>
+                               )}
+                               {profileData.cardStatus === 'expired' && (
+                                  <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] z-20 flex items-center justify-center">
+                                    <span className="bg-slate-700 text-white px-4 py-1.5 rounded-lg font-bold tracking-widest uppercase border border-slate-500">{profileData.settings.language === 'en' ? 'Expired' : 'منتهية الصلاحية'}</span>
+                                  </div>
+                               )}
                                <div className="absolute -top-[30%] -right-[20%] w-[200px] h-[200px] bg-white/5 rounded-full pointer-events-none"></div>
                                <div className="absolute -bottom-[20%] -left-[10%] w-[150px] h-[150px] bg-white/5 rounded-full pointer-events-none"></div>
 
