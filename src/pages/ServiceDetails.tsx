@@ -2,7 +2,7 @@ import { useState, useEffect, FormEvent } from "react";
 import { useParams, Link, useNavigate } from "react-router-dom";
 import { ChevronRight, Star, ShieldCheck, EyeOff, Eye, CreditCard, ShoppingCart, Loader2, Check, AlertCircle } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
-import { doc, getDoc, collection, setDoc, serverTimestamp, query, where, getDocs, updateDoc, increment } from "firebase/firestore";
+import { doc, getDoc, collection, setDoc, serverTimestamp, query, where, getDocs, updateDoc, increment, onSnapshot } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Service, ServiceField } from "../hooks/useServices";
 import { useAuth } from "../contexts/AuthContext";
