@@ -36,6 +36,7 @@ export function UserDashboard() {
     isVerified: false,
     verificationStatus: "none",
     cardExpiryDate: "",
+    cardSignature: "",
     email: "",
     settings: {
       darkMode: false,
@@ -113,6 +114,7 @@ export function UserDashboard() {
             isVerified: d.isVerified || false,
             verificationStatus: d.verificationStatus || "none",
             cardExpiryDate: d.cardExpiryDate || "12/28",
+            cardSignature: d.cardSignature || "",
             settings: d.settings || {
               darkMode: false,
               autoSave: true,
@@ -303,6 +305,7 @@ export function UserDashboard() {
         phoneNumber: profileData.phoneNumber,
         birthDate: profileData.birthDate,
         governorate: profileData.governorate,
+        cardSignature: profileData.cardSignature,
         updatedAt: serverTimestamp()
       });
       toast.success("تم حفظ التعديلات بنجاح!");
@@ -659,6 +662,10 @@ export function UserDashboard() {
                                       <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">تاريخ الميلاد</label>
                                       <input name="birthDate" value={profileData.birthDate} readOnly type="date" className="w-full font-en bg-slate-100 dark:bg-slate-900/30 border border-slate-100 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none text-slate-500 cursor-not-allowed" />
                                     </div>
+                                    <div className="space-y-1.5 md:col-span-2">
+                                      <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider px-1">توقيع البطاقة</label>
+                                      <input name="cardSignature" value={profileData.cardSignature} onChange={handleProfileChange} type="text" placeholder="اكتب اسم توقيعك" style={{ fontFamily: "'Dancing Script', cursive" }} className="w-full text-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-slate-700 rounded-xl px-4 py-2.5 outline-none focus:border-indigo-500 transition-all text-left dir-ltr" />
+                                    </div>
                                   </div>
                                   
                                   <div className="mt-6 flex justify-end">
@@ -759,7 +766,9 @@ export function UserDashboard() {
 
                                          <div className="absolute bottom-[50px] left-[25px]">
                                            <div className="text-[10px] uppercase text-white/70 mb-1 tracking-wide font-en text-left">Signature</div>
-                                           <div className="w-[180px] h-[35px] border-b border-dashed border-white/50"></div>
+                                           <div className="w-[180px] h-[35px] border-b border-dashed border-white/50 flex items-end pb-1 overflow-hidden">
+                                              <span style={{ fontFamily: "'Dancing Script', cursive" }} className="text-xl text-white/90 truncate">{profileData.cardSignature}</span>
+                                           </div>
                                          </div>
 
                                          <div className="absolute bottom-3 left-0 right-0 text-center text-[7px] text-white/30 font-en tracking-wide uppercase">
@@ -1400,10 +1409,12 @@ export function UserDashboard() {
                                  </div>
                                </div>
 
-                               <div className="absolute bottom-[50px] left-[25px]">
-                                 <div className="text-[10px] uppercase text-white/70 mb-1 tracking-wide font-en text-left">Signature</div>
-                                 <div className="w-[180px] h-[35px] border-b border-dashed border-white/50"></div>
-                               </div>
+                                 <div className="absolute bottom-[50px] left-[25px]">
+                                   <div className="text-[10px] uppercase text-white/70 mb-1 tracking-wide font-en text-left">Signature</div>
+                                   <div className="w-[180px] h-[35px] border-b border-dashed border-white/50 flex items-end pb-1 overflow-hidden">
+                                      <span style={{ fontFamily: "'Dancing Script', cursive" }} className="text-xl text-white/90 truncate">{profileData.cardSignature}</span>
+                                   </div>
+                                 </div>
 
                                <div className="absolute bottom-3 left-0 right-0 text-center text-[7px] text-white/30 font-en tracking-wide uppercase">
                                  This card is issued by Syria Pay
