@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
 import { useLanguage } from "../contexts/LanguageContext";
-import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, deleteDoc } from "firebase/firestore";
+import { collection, query, where, onSnapshot, doc, updateDoc, serverTimestamp, setDoc, deleteDoc, increment, getDocs } from "firebase/firestore";
 import { reauthenticateWithCredential, EmailAuthProvider, updatePassword, signOut } from "firebase/auth";
 import { db, handleFirestoreError, OperationType, auth } from "../lib/firebase";
 import { toast } from "react-hot-toast";
@@ -204,20 +204,44 @@ export function UserDashboard() {
 
     setIsTransferring(true);
     try {
+      // Check if receiver exists first
+      const usersRef = collection(db, "users");
+      const qEmail = query(usersRef, where("email", "==", transferReceiverId));
+      const emailSnap = await getDocs(qEmail);
+      
+      let receiverFound = !emailSnap.empty;
+      let finalReceiverId = transferReceiverId;
+
+      if (!receiverFound) {
+        // Try as UID
+        const qUid = query(usersRef, where("__name__", "==", transferReceiverId));
+        const uidSnap = await getDocs(qUid);
+        receiverFound = !uidSnap.empty;
+      } else {
+        // If found by email, use the actual UID for the transaction to be safer
+        finalReceiverId = emailSnap.docs[0].id;
+      }
+
+      if (!receiverFound) {
+        toast.error("عذراً، لم يتم العثور على حساب بهذا البريد أو المعرف. يرجى التأكد من البيانات.");
+        setIsTransferring(false);
+        return;
+      }
+
       const txRef = doc(collection(db, "transactions"));
       await setDoc(txRef, {
         userId: user.uid,
         userEmail: user.email,
-        receiverId: transferReceiverId, // Or email
+        receiverId: finalReceiverId,
         amount: Number(transferAmount),
         type: "p2p_transfer",
         status: "pending_approval",
-        description: `طلب تحويل إلى ${transferReceiverId}`,
+        description: `طلب تحويل رصيد إلى ${transferReceiverId}`,
         createdAt: serverTimestamp(),
         updatedAt: serverTimestamp()
       });
+
       // Deduct balance manually from client side so it reflects instantly as "held"
-      // Admin will either approve (and add to receiver) or reject (and refund sender).
       await updateDoc(doc(db, "users", user.uid), {
         walletBalance: increment(-Number(transferAmount)),
         updatedAt: serverTimestamp()

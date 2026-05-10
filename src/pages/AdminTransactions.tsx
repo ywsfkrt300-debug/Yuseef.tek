@@ -44,16 +44,28 @@ export function AdminTransactions() {
       });
       
       if (newStatus === "مكتمل" && tx.status !== "مكتمل" && tx.type === "p2p_transfer") {
-         // Resolve Receiver ID By Email OR UID (in this case, receiverId is the literal UID or email)
-         // Since receiverId from UI could be an email, we should search for it.
-         // Actually, if it's an email, we need to query users by email.
+         // Resolve Receiver ID By Email OR UID
          const usersRef = collection(db, "users");
+         let actualReceiverUid = tx.receiverId;
+
+         // Try finding by email first
          const qEmail = query(usersRef, where("email", "==", tx.receiverId));
          const usersSnap = await getDocs(qEmail);
-         let actualReceiverUid = tx.receiverId;
          
          if (!usersSnap.empty) {
            actualReceiverUid = usersSnap.docs[0].id;
+         } else {
+           // If not found by email, check if receiverId itself is a valid UID document
+           try {
+             const directSnap = await getDocs(query(usersRef, where("__name__", "==", tx.receiverId)));
+             if (directSnap.empty) {
+                toast.error("تعذر العثور على حساب المستلم. تأكد من صحة البريد الإلكتروني أو المعرف.");
+                return;
+             }
+           } catch (e) {
+             toast.error("المعرف المدخل غير صالح.");
+             return;
+           }
          }
 
          await updateDoc(doc(db, "users", actualReceiverUid), {
