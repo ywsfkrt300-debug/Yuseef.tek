@@ -35,6 +35,7 @@ import { Privacy } from "./pages/Privacy";
 function AppContent() {
   const { user, loading: authLoading } = useAuth();
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceReason, setMaintenanceReason] = useState("");
   const [settingsLoading, setSettingsLoading] = useState(true);
   const [userRole, setUserRole] = useState<string | null>(null);
 
@@ -77,7 +78,9 @@ function AppContent() {
   useEffect(() => {
     const unsubscribe = onSnapshot(doc(db, "settings", "global"), (snapshot) => {
       if (snapshot.exists()) {
-        setMaintenanceMode(snapshot.data().maintenanceMode || false);
+        const data = snapshot.data();
+        setMaintenanceMode(data.maintenanceMode || false);
+        setMaintenanceReason(data.maintenanceReason || "");
       }
       setSettingsLoading(false);
     }, () => {
@@ -102,9 +105,9 @@ function AppContent() {
         <div className="w-24 h-24 bg-amber-100 dark:bg-amber-500/10 text-amber-500 rounded-3xl flex items-center justify-center mb-8">
           <AlertTriangle size={48} />
         </div>
-        <h1 className="text-4xl font-bold text-slate-800 dark:text-white mb-4 leading-tight">الموقع في وضع الصيانة</h1>
+        <h1 className="text-4xl font-bold text-slate-800 dark:text-white mb-4 leading-tight">الخدمات متوقفة مؤقتاً</h1>
         <p className="text-lg text-slate-500 dark:text-slate-400 max-w-md mx-auto leading-relaxed">
-          نحن نقوم ببعض التحديثات الضرورية لتحسين تجربتكم. <br /> سنعود قريباً جداً، نشكركم على صبركم.
+          {maintenanceReason || "نحن نقوم ببعض التحديثات الضرورية لتحسين تجربتكم. سنعود قريباً جداً، نشكركم على صبركم."}
         </p>
         <div className="mt-12 text-sm text-slate-400 font-en">
           &copy; {new Date().getFullYear()} Pay Minutes

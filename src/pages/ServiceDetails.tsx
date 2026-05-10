@@ -24,6 +24,8 @@ export function ServiceDetails() {
   const [step, setStep] = useState(1);
   const [orderSummary, setOrderSummary] = useState<any>(null);
   const [checkingWallet, setCheckingWallet] = useState(false);
+  const [suspendServices, setSuspendServices] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
 
   useEffect(() => {
     async function loadService() {
@@ -40,10 +42,25 @@ export function ServiceDetails() {
       }
     }
     loadService();
+    
+    // Listen for settings
+    const unsubscribe = onSnapshot(doc(db, "settings", "global"), (docSnapshot) => {
+       if (docSnapshot.exists()) {
+          const data = docSnapshot.data();
+          setSuspendServices(data.suspendServices || false);
+          setSuspendReason(data.suspendReason || "");
+       }
+    });
+    
+    return () => unsubscribe();
   }, [id]);
 
   const handleNextStep = async (e: FormEvent) => {
     e.preventDefault();
+    if (suspendServices) {
+       toast.error(suspendReason || "نعتذر، طلب الخدمات متوقف مؤقتاً");
+       return;
+    }
     if (!service || !user) {
       toast.error("يرجى تسجيل الدخول أولاً");
       return;
@@ -223,9 +240,18 @@ export function ServiceDetails() {
               <h2 className="text-lg font-bold text-slate-900 dark:text-white">معلومات الاشتراك</h2>
             </div>
 
-            {!user && (
+            {!user && !suspendServices && (
               <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 text-amber-800 dark:text-amber-400 p-4 rounded-xl mb-6 font-medium">
                 يرجى تسجيل الدخول أولاً لتتمكن من إرسال الطلب وتتبعه.
+              </div>
+            )}
+
+            {suspendServices && (
+              <div className="bg-red-50 dark:bg-red-500/10 border-l-4 border-red-500 text-red-700 dark:text-red-400 p-4 rounded-xl mb-6 font-medium flex items-start gap-3">
+                <AlertCircle className="shrink-0 mt-0.5" size={20} />
+                <p>
+                  {suspendReason || "نعتذر، طلب الخدمات متوقف مؤقتاً."}
+                </p>
               </div>
             )}
 
@@ -242,11 +268,12 @@ export function ServiceDetails() {
                           <input 
                             type={showPassword ? "text" : "password"} 
                             required={field.required}
+                            disabled={suspendServices}
                             value={formData[field.name] || ''}
                             onChange={e => setFormData({...formData, [field.name]: e.target.value})}
-                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en text-left dir-ltr" 
+                            className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en text-left dir-ltr disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800" 
                           />
-                          <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute left-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300">
+                          <button type="button" disabled={suspendServices} onClick={() => setShowPassword(!showPassword)} className="absolute left-4 top-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 disabled:opacity-50">
                             {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
                           </button>
                         </div>
@@ -254,9 +281,10 @@ export function ServiceDetails() {
                         <input 
                           type={field.type} 
                           required={field.required}
+                          disabled={suspendServices}
                           value={formData[field.name] || ''}
                           onChange={e => setFormData({...formData, [field.name]: e.target.value})}
-                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors" 
+                          className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3.5 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors disabled:opacity-50 disabled:bg-slate-100 dark:disabled:bg-slate-800" 
                         />
                       )}
                     </div>
@@ -271,9 +299,10 @@ export function ServiceDetails() {
                      <input 
                        type="number" 
                        required
+                       disabled={suspendServices}
                        value={customPrice}
                        onChange={e => setCustomPrice(e.target.value)}
-                       className="w-full bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-700/50 rounded-xl px-4 py-3.5 text-indigo-900 dark:text-indigo-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en" 
+                       className="w-full bg-indigo-50/50 dark:bg-indigo-900/10 border border-indigo-200 dark:border-indigo-700/50 rounded-xl px-4 py-3.5 text-indigo-900 dark:text-indigo-100 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500 transition-colors font-en disabled:opacity-50" 
                        placeholder="أدخل قيمة الفاتورة" 
                      />
                    </div>
@@ -283,9 +312,10 @@ export function ServiceDetails() {
                   <div className="relative flex items-center">
                     <input 
                       type="checkbox" 
+                      disabled={suspendServices}
                       checked={saveData}
                       onChange={(e) => setSaveData(e.target.checked)}
-                      className="w-5 h-5 border-slate-300 rounded text-indigo-500 focus:ring-indigo-500 bg-white" 
+                      className="w-5 h-5 border-slate-300 rounded text-indigo-500 focus:ring-indigo-500 bg-white disabled:opacity-50" 
                     />
                   </div>
                   <label className="text-sm font-medium text-slate-700 dark:text-slate-300">
@@ -294,7 +324,7 @@ export function ServiceDetails() {
                 </div>
 
                 <div className="flex flex-col sm:flex-row gap-4 pt-4">
-                  <button disabled={!user || checkingWallet} type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:grayscale">
+                  <button disabled={!user || checkingWallet || suspendServices} type="submit" className="flex-1 bg-gradient-to-r from-indigo-500 to-indigo-600 text-white font-bold py-4 rounded-xl shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2 hover:scale-[1.02] transition-transform disabled:opacity-50 disabled:grayscale disabled:cursor-not-allowed">
                     {checkingWallet ? <Loader2 className="animate-spin" size={20} /> : <ShoppingCart size={20} />}
                     {checkingWallet ? "جاري التحقق..." : "متابعة الطلب"}
                   </button>

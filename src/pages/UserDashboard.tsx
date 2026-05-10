@@ -34,7 +34,15 @@ export function UserDashboard() {
     governorate: "",
     walletBalance: 0,
     isVerified: false,
-    verificationStatus: "none"
+    verificationStatus: "none",
+    cardExpiryDate: "",
+    email: "",
+    settings: {
+      darkMode: false,
+      autoSave: true,
+      language: "ar",
+      notifications: true
+    }
   });
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileMessage, setProfileMessage] = useState("");
@@ -104,6 +112,7 @@ export function UserDashboard() {
             walletBalance: d.walletBalance || 0,
             isVerified: d.isVerified || false,
             verificationStatus: d.verificationStatus || "none",
+            cardExpiryDate: d.cardExpiryDate || "12/28",
             settings: d.settings || {
               darkMode: false,
               autoSave: true,
@@ -405,6 +414,7 @@ export function UserDashboard() {
   const [ticketMessage, setTicketMessage] = useState("");
   const [isSendingTicket, setIsSendingTicket] = useState(false);
   const [isCreatingTicket, setIsCreatingTicket] = useState(false);
+  const [isCardFlipped, setIsCardFlipped] = useState(false);
 
   useEffect(() => {
     if (!user || currentTab !== "support") return;
@@ -686,36 +696,125 @@ export function UserDashboard() {
                               exit={{ height: 0, opacity: 0 }}
                               className="overflow-hidden pt-4 px-2"
                             >
-                              <div className="overflow-hidden bg-slate-900 border border-slate-800 rounded-[32px] p-6 md:p-8 text-white relative">
-                                <div className="relative z-10">
-                                  <div className="flex items-center gap-2 text-indigo-400 mb-4">
-                                    <Wallet size={20} />
-                                    <span className="text-xs font-bold uppercase tracking-widest">محفظتك الرقمية</span>
-                                  </div>
-                                  <div className="mb-8">
-                                    <p className="text-slate-400 text-sm mb-1">الرصيد المتاح</p>
-                                    <h2 className="text-4xl md:text-5xl font-black font-en flex items-baseline gap-2">
-                                      {profileData.walletBalance?.toLocaleString()}
-                                      <span className="text-xl font-normal opacity-40 font-sans">ل.س</span>
-                                    </h2>
-                                  </div>
-                                  <div className="flex flex-col sm:flex-row gap-3">
-                                    <button 
-                                      onClick={() => setIsDepositModalOpen(true)}
-                                      className="flex-1 py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl text-sm font-bold transition-all shadow-xl shadow-indigo-500/30 active:scale-95"
+                              <div className="flex flex-col items-center mb-10">
+                                <div 
+                                  className="w-full max-w-[380px] h-[220px] relative cursor-pointer mb-6"
+                                  style={{ perspective: "1000px" }}
+                                  onClick={() => setIsCardFlipped(!isCardFlipped)}
+                                >
+                                  <motion.div
+                                    className="w-full h-full relative"
+                                    animate={{ rotateY: isCardFlipped ? 180 : 0 }}
+                                    transition={{ duration: 0.6, ease: "easeInOut" }}
+                                    style={{ transformStyle: "preserve-3d" }}
+                                  >
+                                    {/* Front */}
+                                    <div 
+                                      className="absolute inset-0 w-full h-full"
+                                      style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
                                     >
-                                      تغذية الرصيد
-                                    </button>
-                                    <button 
-                                      onClick={() => toast("ميزة التحويل ستتوفر قريباً للعملاء الموثقين.")}
-                                      className="flex-1 py-4 bg-white/10 hover:bg-white/20 backdrop-blur-md rounded-2xl text-sm font-bold transition-all active:scale-95"
+                                      <div className="w-full h-full rounded-[24px] p-5 flex flex-col justify-between overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-br from-[#0F172A] to-[#1E3A8A]">
+                                         <div className="absolute -top-[30%] -right-[20%] w-[200px] h-[200px] bg-white/5 rounded-full pointer-events-none"></div>
+                                         <div className="absolute -bottom-[20%] -left-[10%] w-[150px] h-[150px] bg-white/5 rounded-full pointer-events-none"></div>
+
+                                         <div className="text-right text-lg font-bold text-white tracking-wide relative z-10 font-en">
+                                           Syria Pay
+                                         </div>
+
+                                         <div className="relative z-10 dir-ltr text-left">
+                                           <div className="text-2xl tracking-[3px] font-['Courier_New'] font-semibold text-white mb-2">
+                                             1234 5678 9012 3456
+                                           </div>
+                                           <div className="text-xs text-white/70 tracking-wide font-en">
+                                             Valid Thru: 12/28
+                                           </div>
+                                         </div>
+
+                                         <div className="flex justify-between items-end relative z-10">
+                                           <div className="text-[11px] text-white/60 uppercase tracking-wide font-en text-left dir-ltr">
+                                             CARD HOLDER
+                                             <div className="mt-1 w-[140px] h-[2px] bg-white/30 rounded-sm"></div>
+                                           </div>
+                                           <div className="text-lg font-bold text-[#10B981] bg-[#10B981]/15 px-3 py-1 rounded-full tracking-wide shrink-0">
+                                             {profileData.walletBalance?.toLocaleString() || 0} SYP
+                                           </div>
+                                         </div>
+                                      </div>
+                                    </div>
+
+                                    {/* Back */}
+                                    <div 
+                                      className="absolute inset-0 w-full h-full"
+                                      style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
                                     >
-                                      تحويل رصيد
-                                    </button>
-                                  </div>
+                                      <div className="w-full h-full rounded-[24px] relative overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-r from-[#1E293B] to-[#0F172A]">
+                                         <div className="w-full h-[40px] bg-black mt-[35px]"></div>
+                                         
+                                         <div className="absolute right-[25px] top-[95px] flex items-center gap-2">
+                                           <span className="text-[11px] font-bold uppercase text-white font-en">CVV</span>
+                                           <div className="bg-white text-black px-2.5 py-1 rounded text-sm font-bold font-['Courier_New'] text-center">
+                                             123
+                                           </div>
+                                         </div>
+
+                                         <div className="absolute bottom-[50px] left-[25px]">
+                                           <div className="text-[10px] uppercase text-white/70 mb-1 tracking-wide font-en text-left">Signature</div>
+                                           <div className="w-[180px] h-[35px] border-b border-dashed border-white/50"></div>
+                                         </div>
+
+                                         <div className="absolute bottom-3 left-0 right-0 text-center text-[7px] text-white/30 font-en tracking-wide uppercase">
+                                           This card is issued by Syria Pay
+                                         </div>
+                                      </div>
+                                    </div>
+                                  </motion.div>
                                 </div>
-                                <div className="absolute top-0 right-0 w-64 h-64 bg-indigo-500/20 blur-[100px] rounded-full -mr-20 -mt-20"></div>
-                                <div className="absolute bottom-0 left-0 w-48 h-48 bg-purple-500/10 blur-[80px] rounded-full -ml-20 -mb-20"></div>
+
+                                <button 
+                                  onClick={() => setIsDepositModalOpen(true)}
+                                  className="w-full max-w-[380px] py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl text-white font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+                                >
+                                  <CreditCard size={20} />
+                                  شحن المحفظة
+                                </button>
+                              </div>
+
+                              <div>
+                                <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">آخر العمليات</h3>
+                                <div className="space-y-4">
+                                  {loadingTransactions ? (
+                                    <div className="p-8 text-center text-slate-500">جاري التحميل...</div>
+                                  ) : transactions.length === 0 ? (
+                                    <div className="text-center py-12 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-2xl">
+                                       <Clock className="mx-auto w-12 h-12 text-slate-300 dark:text-slate-600 mb-4" />
+                                       <p className="text-slate-500 text-lg">لا توجد عمليات سابقة.</p>
+                                    </div>
+                                  ) : (
+                                    transactions.slice(0, 5).map((tx) => (
+                                       <div key={tx.id} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-4">
+                                         <div className="flex items-center gap-3 w-full">
+                                            <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tx.type === 'deposit' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20' : tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20' : tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20'}`}>
+                                              {tx.type === 'deposit' ? <CreditCard size={20} /> : <Clock size={20} />}
+                                            </div>
+                                            <div className="flex-1">
+                                               <h4 className="font-bold text-sm text-slate-800 dark:text-white line-clamp-1">{tx.type === 'deposit' ? 'شحن رصيد' : tx.serviceName}</h4>
+                                               <p className="text-xs text-slate-500">
+                                                 {tx.createdAt?.toDate ? new Date(tx.createdAt.toDate()).toLocaleDateString('ar-SA') : ''}
+                                               </p>
+                                            </div>
+                                            <div className="text-left shrink-0">
+                                               <div className={`font-bold font-en ${tx.type === 'deposit' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                                 {tx.type === 'deposit' ? '+' : '-'}{tx.amount?.toLocaleString()} SP
+                                               </div>
+                                               <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-1 ${tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'}`}>
+                                                 {tx.status}
+                                               </span>
+                                            </div>
+                                         </div>
+                                       </div>
+                                    ))
+                                  )}
+                                </div>
                               </div>
                             </motion.div>
                           )}
@@ -1235,7 +1334,133 @@ export function UserDashboard() {
                     </div>
                   </div>
                 )}
+                
+                {currentTab === "wallet" && (
+                  <div>
+                    <h2 className="text-2xl font-bold mb-6">المحفظة</h2>
+                    
+                    <div className="flex flex-col items-center mb-10">
+                      <div 
+                        className="w-full max-w-[380px] h-[220px] relative cursor-pointer mb-6"
+                        style={{ perspective: "1000px" }}
+                        onClick={() => setIsCardFlipped(!isCardFlipped)}
+                      >
+                        <motion.div
+                          className="w-full h-full relative"
+                          animate={{ rotateY: isCardFlipped ? 180 : 0 }}
+                          transition={{ duration: 0.6, ease: "easeInOut" }}
+                          style={{ transformStyle: "preserve-3d" }}
+                        >
+                          {/* Front */}
+                          <div 
+                            className="absolute inset-0 w-full h-full"
+                            style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden" }}
+                          >
+                            <div className="w-full h-full rounded-[24px] p-5 flex flex-col justify-between overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-br from-[#0F172A] to-[#1E3A8A]">
+                               <div className="absolute -top-[30%] -right-[20%] w-[200px] h-[200px] bg-white/5 rounded-full pointer-events-none"></div>
+                               <div className="absolute -bottom-[20%] -left-[10%] w-[150px] h-[150px] bg-white/5 rounded-full pointer-events-none"></div>
 
+                               <div className="text-right text-lg font-bold text-white tracking-wide relative z-10 font-en">
+                                 Syria Pay
+                               </div>
+
+                               <div className="relative z-10 dir-ltr text-left">
+                                 <div className="text-2xl tracking-[3px] font-['Courier_New'] font-semibold text-white mb-2">
+                                   {user?.uid ? user.uid.substring(0, 16).replace(/(.{4})/g, '$1 ').trim() : '1234 5678 9012 3456'}
+                                 </div>
+                                 <div className="text-xs text-white/70 tracking-wide font-en">
+                                   Valid Thru: {profileData.cardExpiryDate || "12/28"}
+                                 </div>
+                               </div>
+
+                               <div className="flex justify-between items-end relative z-10">
+                                 <div className="text-[11px] text-white/60 uppercase tracking-wide font-en text-left dir-ltr">
+                                   CARD HOLDER
+                                   <div className="mt-1 w-[140px] h-[2px] bg-white/30 rounded-sm"></div>
+                                 </div>
+                                 <div className="text-lg font-bold text-[#10B981] bg-[#10B981]/15 px-3 py-1 rounded-full tracking-wide shrink-0">
+                                   {profileData.walletBalance?.toLocaleString() || 0} SYP
+                                 </div>
+                               </div>
+                            </div>
+                          </div>
+
+                          {/* Back */}
+                          <div 
+                            className="absolute inset-0 w-full h-full"
+                            style={{ backfaceVisibility: "hidden", WebkitBackfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
+                          >
+                            <div className="w-full h-full rounded-[24px] relative overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-r from-[#1E293B] to-[#0F172A]">
+                               <div className="w-full h-[40px] bg-black mt-[35px]"></div>
+                               
+                               <div className="absolute right-[25px] top-[95px] flex items-center gap-2">
+                                 <span className="text-[11px] font-bold uppercase text-white font-en">CVV</span>
+                                 <div className="bg-white text-black px-2.5 py-1 rounded text-sm font-bold font-['Courier_New'] text-center">
+                                   123
+                                 </div>
+                               </div>
+
+                               <div className="absolute bottom-[50px] left-[25px]">
+                                 <div className="text-[10px] uppercase text-white/70 mb-1 tracking-wide font-en text-left">Signature</div>
+                                 <div className="w-[180px] h-[35px] border-b border-dashed border-white/50"></div>
+                               </div>
+
+                               <div className="absolute bottom-3 left-0 right-0 text-center text-[7px] text-white/30 font-en tracking-wide uppercase">
+                                 This card is issued by Syria Pay
+                               </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      </div>
+
+                      <button 
+                        onClick={() => setIsDepositModalOpen(true)}
+                        className="w-full max-w-[380px] py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl text-white font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+                      >
+                        <CreditCard size={20} />
+                        شحن المحفظة
+                      </button>
+                    </div>
+
+                    <div>
+                      <h3 className="text-xl font-bold mb-4 text-slate-800 dark:text-white">آخر العمليات</h3>
+                      <div className="space-y-4">
+                        {loadingTransactions ? (
+                          <div className="p-8 text-center text-slate-500">جاري التحميل...</div>
+                        ) : transactions.length === 0 ? (
+                          <div className="text-center py-12 border-2 border-dashed border-slate-100 dark:border-slate-700 rounded-2xl">
+                             <Clock className="mx-auto w-12 h-12 text-slate-300 dark:text-slate-600 mb-4" />
+                             <p className="text-slate-500 text-lg">لا توجد عمليات سابقة.</p>
+                          </div>
+                        ) : (
+                          transactions.slice(0, 5).map((tx) => (
+                             <div key={tx.id} className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4 flex items-center justify-between gap-4">
+                               <div className="flex items-center gap-3 w-full">
+                                  <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 ${tx.type === 'deposit' ? 'bg-indigo-100 text-indigo-600 dark:bg-indigo-500/20' : tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20' : tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20'}`}>
+                                    {tx.type === 'deposit' ? <CreditCard size={20} /> : <Clock size={20} />}
+                                  </div>
+                                  <div className="flex-1">
+                                     <h4 className="font-bold text-sm text-slate-800 dark:text-white line-clamp-1">{tx.type === 'deposit' ? 'شحن رصيد' : tx.serviceName}</h4>
+                                     <p className="text-xs text-slate-500">
+                                       {tx.createdAt?.toDate ? new Date(tx.createdAt.toDate()).toLocaleDateString('ar-SA') : ''}
+                                     </p>
+                                  </div>
+                                  <div className="text-left shrink-0">
+                                     <div className={`font-bold font-en ${tx.type === 'deposit' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>
+                                       {tx.type === 'deposit' ? '+' : '-'}{tx.amount?.toLocaleString()} SP
+                                     </div>
+                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-1 ${tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'}`}>
+                                       {tx.status}
+                                     </span>
+                                  </div>
+                               </div>
+                             </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 {currentTab === "orders" && (
                   <div>
                     <h2 className="text-2xl font-bold mb-6">سجل الطلبات</h2>
@@ -1287,31 +1512,7 @@ export function UserDashboard() {
                   </div>
                 )}
 
-                {currentTab === "wallet" && (
-                  <div>
-                    <h2 className="text-2xl font-bold mb-6">المحفظة</h2>
-                    <div className="bg-slate-800 dark:bg-slate-900 rounded-[32px] p-8 text-white relative overflow-hidden mb-8 border border-slate-700">
-                      <div className="relative z-10">
-                        <p className="text-slate-400 text-sm mb-2 font-medium">إجمالي المحفظة</p>
-                        <h2 className="text-4xl font-bold mb-8 font-en">{profileData.walletBalance?.toLocaleString()} <span className="text-xl font-normal opacity-60 font-sans">ل.س</span></h2>
-                        <div className="flex gap-3">
-                          <button 
-                            onClick={() => setIsDepositModalOpen(true)}
-                            className="flex-1 py-3.5 bg-indigo-500 hover:bg-indigo-600 rounded-xl text-sm font-bold transition-all shadow-lg shadow-indigo-500/25"
-                          >
-                            تغذية الرصيد
-                          </button>
-                          <button 
-                            onClick={() => alert("ميزة التحويل ستتوفر قريباً للعملاء الموثقين.")}
-                            className="flex-1 py-3.5 bg-white/10 hover:bg-white/20 rounded-xl text-sm font-bold transition-all"
-                          >
-                            تحويل
-                          </button>
-                        </div>
-                      </div>
-                      <div className="absolute -bottom-10 -right-10 w-48 h-48 bg-indigo-500/30 rounded-full blur-[64px]"></div>
-                      <div className="absolute top-10 -left-10 w-32 h-32 bg-purple-500/20 rounded-full blur-[48px]"></div>
-                    </div>
+
 
                     <AnimatePresence>
                       {isDepositModalOpen && (
@@ -1415,32 +1616,6 @@ export function UserDashboard() {
                         </div>
                       )}
                     </AnimatePresence>
-                    
-                    <h3 className="text-lg font-bold mb-4 mt-8">أحدث الحركات</h3>
-                    <div className="space-y-3">
-                       {transactions.slice(0, 5).map(tx => (
-                         <div key={tx.id} className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-2xl border border-slate-100 dark:border-slate-700">
-                            <div className="flex items-center gap-3">
-                               <div className="w-10 h-10 rounded-full bg-indigo-50 dark:bg-indigo-500/10 flex items-center justify-center text-indigo-500">
-                                  <CreditCard size={18} />
-                               </div>
-                               <div>
-                                  <p className="font-bold text-sm">{tx.serviceName}</p>
-                                  <p className="text-[10px] text-slate-500">{new Date(tx.createdAt?.toMillis() || Date.now()).toLocaleDateString('ar-SY')}</p>
-                               </div>
-                            </div>
-                            <p className="font-bold font-en text-red-500">-{tx.amount?.toLocaleString()} ل.س</p>
-                         </div>
-                       ))}
-                       {transactions.length === 0 && (
-                          <div className="text-center py-8 text-slate-500 border border-slate-100 dark:border-slate-700 rounded-2xl border-dashed">
-                            <Wallet size={40} className="mx-auto text-slate-300 dark:text-slate-600 mb-3" />
-                            <p>لا توجد حركات سابقة في محفظتك.</p>
-                          </div>
-                       )}
-                    </div>
-                  </div>
-                )}
 
                 {currentTab === "notifications" && (
                   <div className="space-y-6">

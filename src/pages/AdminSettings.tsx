@@ -17,6 +17,9 @@ export function AdminSettings() {
 
   const [appName, setAppName] = useState("باي مينتس");
   const [maintenanceMode, setMaintenanceMode] = useState(false);
+  const [maintenanceReason, setMaintenanceReason] = useState("");
+  const [suspendServices, setSuspendServices] = useState(false);
+  const [suspendReason, setSuspendReason] = useState("");
   const [socialLinks, setSocialLinks] = useState<SocialLink[]>([]);
   const [terms, setTerms] = useState("");
   const [privacy, setPrivacy] = useState("");
@@ -31,6 +34,9 @@ export function AdminSettings() {
           const data = sDoc.data();
           setAppName(data.appName || "باي مينتس");
           setMaintenanceMode(data.maintenanceMode || false);
+          setMaintenanceReason(data.maintenanceReason || "");
+          setSuspendServices(data.suspendServices || false);
+          setSuspendReason(data.suspendReason || "");
           setSocialLinks(data.socialLinks || []);
           setTerms(data.terms || "");
           setPrivacy(data.privacy || "");
@@ -52,6 +58,9 @@ export function AdminSettings() {
       await setDoc(doc(db, "settings", "global"), {
         appName,
         maintenanceMode,
+        maintenanceReason,
+        suspendServices,
+        suspendReason,
         socialLinks,
         terms,
         privacy,
@@ -168,18 +177,62 @@ export function AdminSettings() {
               <input value={appName} onChange={e => setAppName(e.target.value)} type="text" className="w-full bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" />
             </div>
             
-            <div className="flex items-center justify-between p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
-               <div className="flex items-center gap-3">
-                  <AlertCircle className="text-amber-500" size={20} />
-                  <div>
-                    <p className="font-bold text-sm">وضع الصيانة</p>
-                    <p className="text-xs text-slate-500">إغلاق الموقع مؤقتاً للمستخدمين</p>
-                  </div>
+            <div className="flex flex-col gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                    <AlertCircle className="text-amber-500" size={20} />
+                    <div>
+                      <p className="font-bold text-sm">وضع الصيانة أو إيقاف الخدمات</p>
+                      <p className="text-xs text-slate-500">إغلاق الموقع مؤقتاً للمستخدمين (مثلاً: لا يوجد رصيد كاش حالياً)</p>
+                    </div>
+                 </div>
+                 <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={maintenanceMode} onChange={e => setMaintenanceMode(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:-translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                 </label>
                </div>
-               <label className="relative inline-flex items-center cursor-pointer">
-                <input type="checkbox" checked={maintenanceMode} onChange={e => setMaintenanceMode(e.target.checked)} className="sr-only peer" />
-                <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:-translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
-              </label>
+               
+               {maintenanceMode && (
+                 <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">سبب الإيقاف الكلي (يظهر للمستخدمين)</label>
+                   <input 
+                     value={maintenanceReason} 
+                     onChange={e => setMaintenanceReason(e.target.value)} 
+                     type="text" 
+                     placeholder="مثال: نعتذر، الموقع في حالة صيانة." 
+                     className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" 
+                   />
+                 </div>
+               )}
+            </div>
+            
+            <div className="flex flex-col gap-4 p-4 bg-slate-50 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+               <div className="flex items-center justify-between">
+                 <div className="flex items-center gap-3">
+                    <AlertCircle className="text-red-500" size={20} />
+                    <div>
+                      <p className="font-bold text-sm">إيقاف طلب الخدمات</p>
+                      <p className="text-xs text-slate-500">منع المستخدمين من طلب خدمات جديدة (مثلاً: لا يوجد رصيد كاش حالياً)</p>
+                    </div>
+                 </div>
+                 <label className="relative inline-flex items-center cursor-pointer">
+                  <input type="checkbox" checked={suspendServices} onChange={e => setSuspendServices(e.target.checked)} className="sr-only peer" />
+                  <div className="w-11 h-6 bg-slate-200 peer-focus:outline-none rounded-full peer dark:bg-slate-700 peer-checked:after:-translate-x-full rtl:peer-checked:after:-translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:right-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-red-500"></div>
+                 </label>
+               </div>
+               
+               {suspendServices && (
+                 <div className="pt-2 border-t border-slate-200 dark:border-slate-800">
+                   <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">سبب الإيقاف (يظهر في صفحة الخدمات)</label>
+                   <input 
+                     value={suspendReason} 
+                     onChange={e => setSuspendReason(e.target.value)} 
+                     type="text" 
+                     placeholder="مثال: نعتذر، طلب الخدمات متوقف مؤقتاً لعدم توفر رصيد كاش." 
+                     className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500" 
+                   />
+                 </div>
+               )}
             </div>
           </div>
         </div>
