@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { collection, onSnapshot, query, doc, updateDoc, serverTimestamp, increment, setDoc } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Search, User as UserIcon, Shield, CreditCard, Mail, Phone, Calendar, MapPin, MoreVertical, Plus, ChevronRight, Check } from "lucide-react";
@@ -16,6 +16,8 @@ export function AdminUsers() {
   const [addBalanceStep, setAddBalanceStep] = useState(1);
   const [dailyLimit, setDailyLimit] = useState("");
   const [cardExpiry, setCardExpiry] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
   const [cardStatus, setCardStatus] = useState("");
   const [isUpdating, setIsUpdating] = useState(false);
   const [viewType, setViewType] = useState<"table" | "cards">("cards");
@@ -128,6 +130,29 @@ export function AdminUsers() {
       if (selectedUser?.id === user.id) {
         setSelectedUser({...selectedUser, cardExpiryDate: cardExpiry});
       }
+    } catch (error) {
+       handleFirestoreError(error, OperationType.UPDATE, "users");
+    } finally {
+       setIsUpdating(false);
+    }
+  };
+
+  const updateCardDetails = async (user: any) => {
+    if (!cardNumber && !cardCvv) return;
+    setIsUpdating(true);
+    try {
+      const updates: any = { updatedAt: serverTimestamp() };
+      if (cardNumber) updates.cardNumber = cardNumber;
+      if (cardCvv) updates.cardCvv = cardCvv;
+
+      await updateDoc(doc(db, "users", user.id), updates);
+      toast.success("تم تحديث بيانات البطاقة بنجاح");
+      
+      if (selectedUser?.id === user.id) {
+        setSelectedUser({...selectedUser, ...updates});
+      }
+      setCardNumber("");
+      setCardCvv("");
     } catch (error) {
        handleFirestoreError(error, OperationType.UPDATE, "users");
     } finally {
@@ -470,6 +495,51 @@ export function AdminUsers() {
                      <p className="text-xs text-slate-500 mt-2">اتركه فارغاً أو صفر لجعله بلا حدود.</p>
                    </div>
                    
+                   <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
+                     <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">بيانات البطاقة (الرقم و CVV)</label>
+                     <div className="space-y-3">
+                        <div className="relative">
+                          <CreditCard className="absolute left-4 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                          <input 
+                            type="text" 
+                            value={cardNumber !== "" ? cardNumber : (selectedUser.cardNumber || "")} 
+                            onChange={(e) => setCardNumber(e.target.value)}
+                            placeholder="رقم البطاقة (16 رقم)..."
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl pl-12 pr-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors font-en"
+                          />
+                          <button 
+                            onClick={() => {
+                              const randomNum = Array.from({length: 4}, () => Math.floor(Math.random() * 9000 + 1000)).join('');
+                              setCardNumber(randomNum);
+                              const randomCvv = Math.floor(Math.random() * 899 + 100).toString();
+                              setCardCvv(randomCvv);
+                            }}
+                            className="absolute right-2 top-1/2 -translate-y-1/2 px-3 py-1.5 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 rounded-lg text-[10px] font-bold transition-all"
+                          >
+                            توليد عشوائي
+                          </button>
+                        </div>
+                        <div className="flex gap-2">
+                          <input 
+                            type="text" 
+                            value={cardCvv !== "" ? cardCvv : (selectedUser.cardCvv || "")} 
+                            onChange={(e) => setCardCvv(e.target.value)}
+                            placeholder="رمز CVV..."
+                            maxLength={3}
+                            className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl px-4 py-3 focus:outline-none focus:border-indigo-500 transition-colors font-en text-center"
+                          />
+                          <button 
+                             onClick={() => updateCardDetails(selectedUser)}
+                             disabled={isUpdating || (!cardNumber && !cardCvv)}
+                             className="bg-slate-800 hover:bg-slate-900 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white px-8 rounded-xl font-bold transition-all disabled:opacity-50"
+                          >
+                             تحديث
+                          </button>
+                        </div>
+                     </div>
+                     <p className="text-xs text-slate-500 mt-2">تحديث رقم البطاقة ورمز الأمان المعروض للمستخدم.</p>
+                   </div>
+
                    <div className="bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-2xl p-4">
                      <label className="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2">تاريخ صلاحية البطاقة</label>
                      <div className="flex gap-2">

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { User, CreditCard, Clock, Bell, Wallet, Settings, Camera, Copy, Check, Shield, Image as FileImage, AlertCircle, Loader2, X, Lock, Eye, EyeOff, Moon, Sun, Save, Globe, Smartphone, Trash2, RefreshCw, ChevronDown, MessageSquare, Plus, Send } from "lucide-react";
+import { User, CreditCard, Clock, Bell, Wallet, Settings, Camera, Copy, Check, Shield, Image as FileImage, AlertCircle, Loader2, X, Lock, Eye, EyeOff, Moon, Sun, Save, Globe, Smartphone, Trash2, RefreshCw, ChevronDown, MessageSquare, Plus, Send, Printer, ExternalLink } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { useAuth } from "../contexts/AuthContext";
@@ -65,12 +65,14 @@ export function UserDashboard() {
   const [depositAmount, setDepositAmount] = useState("");
   const [depositProof, setDepositProof] = useState<string | null>(null);
   const [isDepositing, setIsDepositing] = useState(false);
+  const [selectedTransactionForReceipt, setSelectedTransactionForReceipt] = useState<any | null>(null);
 
   // Transfer State
   const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
   const [transferReceiverId, setTransferReceiverId] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [isTransferring, setIsTransferring] = useState(false);
+  const [supportTicketId, setSupportTicketId] = useState<string | null>(null);
   const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     "personal-info": true
@@ -123,6 +125,8 @@ export function UserDashboard() {
             cardExpiryDate: d.cardExpiryDate || "12/28",
             cardSignature: d.cardSignature || "",
             cardStatus: d.cardStatus || "active",
+            cardNumber: d.cardNumber || "",
+            cardCvv: d.cardCvv || "",
             settings: d.settings || {
               darkMode: false,
               autoSave: true,
@@ -288,6 +292,83 @@ export function UserDashboard() {
     } finally {
       setIsDepositing(false);
     }
+  };
+
+  const ReceiptModal = ({ transaction, onClose }: { transaction: any, onClose: () => void }) => {
+    if (!transaction) return null;
+    
+    const handlePrint = () => {
+      window.print();
+    };
+
+    return (
+      <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+        <motion.div 
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+          onClick={onClose}
+          className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+        />
+        <motion.div 
+          initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+          className="relative w-full max-w-md bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden print:shadow-none print:rounded-none"
+        >
+          <div className="p-8 space-y-6 print:p-0">
+             <div className="text-center space-y-2 pb-6 border-b border-dashed border-slate-200 dark:border-slate-800">
+                <div className="w-16 h-16 bg-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-4 text-white">
+                   <CreditCard size={32} />
+                </div>
+                <h3 className="text-2xl font-bold text-slate-800 dark:text-white">إيصال دفع</h3>
+                <p className="text-slate-500 font-en">Syria Pay Digital Invoice</p>
+             </div>
+
+             <div className="space-y-4 font-en">
+                <div className="flex justify-between items-center text-sm">
+                   <span className="text-slate-500">Transaction ID</span>
+                   <span className="font-bold text-slate-800 dark:text-white uppercase">{transaction.id.substring(0, 12)}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                   <span className="text-slate-500">Date & Time</span>
+                   <span className="font-bold text-slate-800 dark:text-white">
+                      {transaction.createdAt?.toDate ? new Date(transaction.createdAt.toDate()).toLocaleString('ar-SA') : new Date().toLocaleString('ar-SA')}
+                   </span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                   <span className="text-slate-500">Service</span>
+                   <span className="font-bold text-slate-800 dark:text-white">{transaction.serviceName || (transaction.type === 'deposit' ? 'Top-up Wallet' : 'Transfer')}</span>
+                </div>
+                <div className="flex justify-between items-center text-sm">
+                   <span className="text-slate-500">Account / Phone</span>
+                   <span className="font-bold text-slate-800 dark:text-white">{transaction.phoneNumber || transaction.receiverId || '-'}</span>
+                </div>
+                <div className="pt-4 border-t border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                   <span className="text-lg font-bold text-slate-800 dark:text-white">Total Amount</span>
+                   <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{transaction.amount?.toLocaleString()} SP</span>
+                </div>
+             </div>
+
+             <div className="bg-slate-50 dark:bg-slate-800/50 p-4 rounded-2xl text-center space-y-1">
+                <p className="text-xs text-slate-500">Status</p>
+                <p className={`font-bold ${transaction.status === 'مكتمل' ? 'text-emerald-500' : 'text-amber-500'}`}>{transaction.status}</p>
+             </div>
+
+             <div className="flex gap-3 pt-4 print:hidden">
+                <button 
+                  onClick={handlePrint}
+                  className="flex-1 bg-slate-800 hover:bg-slate-900 dark:bg-indigo-500 dark:hover:bg-indigo-600 text-white font-bold py-3.5 rounded-2xl transition-all flex items-center justify-center gap-2"
+                >
+                  <Printer size={20} /> طباعة الإيصال
+                </button>
+                <button 
+                   onClick={onClose}
+                   className="px-6 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-300 font-bold rounded-2xl transition-all"
+                >
+                   إغلاق
+                </button>
+             </div>
+          </div>
+        </motion.div>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -654,6 +735,7 @@ export function UserDashboard() {
   const userName = profileData.displayName?.split(" ")[0] || user.displayName?.split(" ")[0] || (profileData.settings.language === 'en' ? "Guest" : "زائر");
 
   return (
+    <>
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 pt-24 pb-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         
@@ -1513,11 +1595,13 @@ export function UserDashboard() {
                                </div>
 
                                <div className="relative z-10 dir-ltr text-left">
-                                 <div className="text-2xl tracking-[3px] font-['Courier_New'] font-semibold text-white mb-2">
-                                   {user?.uid ? user.uid.substring(0, 16).replace(/(.{4})/g, '$1 ').trim() : '1234 5678 9012 3456'}
+                                 <div className="text-2xl tracking-[3px] font-['Courier_New'] font-semibold text-white mb-2 underline decoration-indigo-500/30 decoration-dotted">
+                                   {profileData.cardNumber ? profileData.cardNumber.replace(/(.{4})/g, '$1 ').trim() : (user?.uid ? user.uid.substring(0, 16).replace(/(.{4})/g, '$1 ').trim() : '1234 5678 9012 3456')}
                                  </div>
-                                 <div className="text-xs text-white/70 tracking-wide font-en">
-                                   Valid Thru: {profileData.cardExpiryDate || "12/28"}
+                                 <div className="text-[10px] text-white/70 tracking-wide font-en flex items-center gap-2">
+                                   <span>Valid Thru: {profileData.cardExpiryDate || "12/28"}</span>
+                                   <span className="w-1 h-1 bg-white/30 rounded-full"></span>
+                                   <span>CVV: {profileData.cardCvv || '***'}</span>
                                  </div>
                                </div>
 
@@ -1541,12 +1625,12 @@ export function UserDashboard() {
                             <div className="w-full h-full rounded-[24px] relative overflow-hidden shadow-[0_20px_35px_-10px_rgba(0,0,0,0.4)] bg-gradient-to-r from-[#1E293B] to-[#0F172A]">
                                <div className="w-full h-[40px] bg-black mt-[35px]"></div>
                                
-                               <div className="absolute right-[25px] top-[95px] flex items-center gap-2">
-                                 <span className="text-[11px] font-bold uppercase text-white font-en">CVV</span>
-                                 <div className="bg-white text-black px-2.5 py-1 rounded text-sm font-bold font-['Courier_New'] text-center">
-                                   123
-                                 </div>
-                               </div>
+                                <div className="absolute right-[25px] top-[95px] flex items-center gap-2">
+                                  <span className="text-[11px] font-bold uppercase text-white font-en">CVV</span>
+                                  <div className="bg-white text-black px-2.5 py-1 rounded text-sm font-bold font-['Courier_New'] text-center min-w-[35px]">
+                                    {profileData.cardCvv || '123'}
+                                  </div>
+                                </div>
 
                                  <div className="absolute bottom-[50px] left-[25px]">
                                    <div className="text-[10px] uppercase text-white/70 mb-1 tracking-wide font-en text-left">Signature</div>
@@ -1604,13 +1688,21 @@ export function UserDashboard() {
                                        {tx.createdAt?.toDate ? new Date(tx.createdAt.toDate()).toLocaleDateString('ar-SA') : ''}
                                      </p>
                                   </div>
-                                  <div className="text-left shrink-0">
+                                  <div className="text-left shrink-0 flex flex-col items-end">
                                      <div className={`font-bold font-en ${tx.type === 'deposit' ? 'text-indigo-600 dark:text-indigo-400' : 'text-slate-700 dark:text-slate-300'}`}>
                                        {tx.type === 'deposit' ? '+' : '-'}{tx.amount?.toLocaleString()} SP
                                      </div>
-                                     <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block mt-1 ${tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'}`}>
-                                       {tx.status}
-                                     </span>
+                                     <div className="flex items-center gap-2 mt-1">
+                                        <button 
+                                           onClick={() => setSelectedTransactionForReceipt(tx)}
+                                           className="p-1 px-1.5 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-slate-500 hover:text-indigo-500 transition-colors"
+                                        >
+                                           <Printer size={12} />
+                                        </button>
+                                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-md inline-block ${tx.status === 'مكتمل' ? 'bg-emerald-100 text-emerald-600 dark:bg-emerald-500/20 dark:text-emerald-400' : tx.status === 'مرفوض' ? 'bg-red-100 text-red-600 dark:bg-red-500/20 dark:text-red-400' : 'bg-amber-100 text-amber-600 dark:bg-amber-500/20 dark:text-amber-400'}`}>
+                                          {tx.status}
+                                        </span>
+                                     </div>
                                   </div>
                                </div>
                              </div>
@@ -1661,9 +1753,30 @@ export function UserDashboard() {
                                </div>
                             </div>
                           </div>
-                          <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center border-t border-slate-200 dark:border-slate-700 md:border-0 pt-4 md:pt-0">
-                            <span className="text-slate-500 text-sm mb-1 hidden md:block">المبلغ الإجمالي</span>
-                            <span className="font-bold text-xl text-indigo-600 dark:text-indigo-400 font-en">{tx.amount?.toLocaleString() || 0} <span className="font-sans text-sm font-medium">ل.س</span></span>
+                          <div className="flex md:flex-col items-center md:items-end justify-between md:justify-center border-t border-slate-200 dark:border-slate-700 md:border-0 pt-4 md:pt-0 gap-3">
+                            <div className="flex flex-col items-end">
+                              <span className="text-slate-500 text-[10px] mb-1 hidden md:block">المبلغ الإجمالي</span>
+                              <span className="font-bold text-xl text-indigo-600 dark:text-indigo-400 font-en">{tx.amount?.toLocaleString() || 0} <span className="font-sans text-sm font-medium">ل.س</span></span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                               <button 
+                                  onClick={() => {
+                                    setTicketSubject(`مشكلة في الطلب: ${tx.serviceName}`);
+                                    setTicketMessage(`لدي مشكلة في العملية رقم: ${tx.id}\nالخدمة: ${tx.serviceName}\nالمبلغ: ${tx.amount} ل.س\nالحالة: ${tx.status}\n\nيرجى المساعدة في...`);
+                                    setIsCreatingTicket(true);
+                                    handleTabChange("support");
+                                  }}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-red-100 dark:bg-red-500/20 text-red-600 dark:text-red-400 rounded-xl text-xs font-bold hover:bg-red-200 transition-colors"
+                               >
+                                  <AlertCircle size={14} /> إبلاغ عن مشكلة
+                               </button>
+                               <button 
+                                  onClick={() => setSelectedTransactionForReceipt(tx)}
+                                  className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded-xl text-xs font-bold hover:bg-slate-200 transition-colors"
+                               >
+                                  <Printer size={14} /> إيصال
+                               </button>
+                            </div>
                           </div>
                         </div>
                       ))}
@@ -2027,5 +2140,15 @@ export function UserDashboard() {
         </div>
       </div>
     </div>
+
+    <AnimatePresence>
+      {selectedTransactionForReceipt && (
+        <ReceiptModal 
+          transaction={selectedTransactionForReceipt} 
+          onClose={() => setSelectedTransactionForReceipt(null)} 
+        />
+      )}
+    </AnimatePresence>
+    </>
   );
 }

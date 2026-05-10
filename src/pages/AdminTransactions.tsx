@@ -1,7 +1,7 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { collection, query, onSnapshot, orderBy, doc, updateDoc, serverTimestamp, increment, getDocs, where } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
-import { Search, Filter, CheckCircle, XCircle, Clock, Eye, MoreHorizontal } from "lucide-react";
+import { Search, Filter, CheckCircle, XCircle, Clock, Eye, MoreHorizontal, Printer, CreditCard } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
 import { toast } from "react-hot-toast";
 
@@ -11,6 +11,7 @@ export function AdminTransactions() {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
   const [selectedTx, setSelectedTx] = useState<any | null>(null);
+  const [showReceipt, setShowReceipt] = useState<any | null>(null);
 
   useEffect(() => {
     const q = query(collection(db, "transactions"));
@@ -180,7 +181,14 @@ export function AdminTransactions() {
                     </div>
                   </td>
                   <td className="p-4">
-                    <div className="flex justify-center">
+                    <div className="flex justify-center gap-1">
+                      <button 
+                        onClick={() => setShowReceipt(tx)}
+                        className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors"
+                        title="إيصال"
+                      >
+                        <Printer size={18} />
+                      </button>
                       <button 
                         onClick={() => setSelectedTx(tx)}
                         className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 dark:hover:bg-indigo-500/10 rounded-lg transition-colors"
@@ -251,6 +259,12 @@ export function AdminTransactions() {
 
                 <div className="flex gap-3 pt-4 border-t border-slate-100 dark:border-slate-700">
                   <button 
+                    onClick={() => setShowReceipt(selectedTx)}
+                    className="flex-1 bg-slate-800 hover:bg-slate-900 text-white font-bold py-3 rounded-xl transition-all shadow-lg flex items-center justify-center gap-2"
+                  >
+                    <Printer size={18} /> طباعة إيصال
+                  </button>
+                  <button 
                     onClick={() => updateStatus(selectedTx, "مكتمل")}
                     disabled={selectedTx.status === "مكتمل"}
                     className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white font-bold py-3 rounded-xl transition-all shadow-lg shadow-emerald-500/20 disabled:opacity-50"
@@ -265,6 +279,71 @@ export function AdminTransactions() {
                     رفض الطلب
                   </button>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {showReceipt && (
+          <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <motion.div 
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              onClick={() => setShowReceipt(null)}
+              className="absolute inset-0 bg-slate-900/60 backdrop-blur-sm"
+            />
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }}
+              className="relative w-full max-w-sm bg-white dark:bg-slate-900 rounded-3xl shadow-2xl overflow-hidden print:shadow-none print:rounded-none"
+            >
+              <div className="p-8 space-y-6 print:p-0">
+                 <div className="text-center space-y-2 pb-6 border-b border-dashed border-slate-200 dark:border-slate-800">
+                    <div className="w-12 h-12 bg-indigo-500 rounded-2xl flex items-center justify-center mx-auto mb-3 text-white">
+                       <CreditCard size={28} />
+                    </div>
+                    <h3 className="text-xl font-bold">إيصال دفع رقمي</h3>
+                    <p className="text-[10px] text-slate-500 font-en uppercase tracking-widest">Digital Payment Receipt</p>
+                 </div>
+
+                 <div className="space-y-3 text-sm font-en">
+                    <div className="flex justify-between">
+                       <span className="text-slate-500">Invoice ID</span>
+                       <span className="font-bold uppercase">{showReceipt.id.substring(0, 10)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                       <span className="text-slate-500">Service</span>
+                       <span className="font-bold">{showReceipt.serviceName}</span>
+                    </div>
+                    <div className="flex justify-between">
+                       <span className="text-slate-500">Amount</span>
+                       <span className="font-bold text-indigo-500">{showReceipt.amount?.toLocaleString()} SP</span>
+                    </div>
+                    <div className="flex justify-between">
+                       <span className="text-slate-500">Date</span>
+                       <span className="font-bold">{showReceipt.createdAt?.toMillis() ? new Date(showReceipt.createdAt.toMillis()).toLocaleString('ar-SY') : '---'}</span>
+                    </div>
+                 </div>
+
+                 <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-xl text-center">
+                    <p className="text-[10px] text-slate-500 mb-1">Status</p>
+                    <p className="font-bold text-emerald-500">COMPLETED / ناجحة</p>
+                 </div>
+
+                 <div className="flex gap-2 print:hidden">
+                    <button 
+                      onClick={() => window.print()}
+                      className="flex-1 bg-indigo-500 hover:bg-indigo-600 text-white font-bold py-3 rounded-xl transition-all flex items-center justify-center gap-2"
+                    >
+                      <Printer size={18} /> طباعة
+                    </button>
+                    <button 
+                       onClick={() => setShowReceipt(null)}
+                       className="px-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-bold rounded-xl"
+                    >
+                       إغلاق
+                    </button>
+                 </div>
               </div>
             </motion.div>
           </div>
