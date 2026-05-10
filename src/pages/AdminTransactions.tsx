@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { collection, query, onSnapshot, orderBy, doc, updateDoc, serverTimestamp, increment } from "firebase/firestore";
+import { collection, query, onSnapshot, orderBy, doc, updateDoc, serverTimestamp, increment, getDocs, where } from "firebase/firestore";
 import { db, handleFirestoreError, OperationType } from "../lib/firebase";
 import { Search, Filter, CheckCircle, XCircle, Clock, Eye, MoreHorizontal } from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
@@ -43,11 +43,28 @@ export function AdminTransactions() {
         updatedAt: serverTimestamp()
       });
       
-      if (newStatus === "مرفوض" && tx.status !== "مرفوض" && tx.type !== "deposit" && !!tx.amount) {
+      if (newStatus === "مكتمل" && tx.status !== "مكتمل" && tx.type === "p2p_transfer") {
+         // Resolve Receiver ID By Email OR UID (in this case, receiverId is the literal UID or email)
+         // Since receiverId from UI could be an email, we should search for it.
+         // Actually, if it's an email, we need to query users by email.
+         const usersRef = collection(db, "users");
+         const qEmail = query(usersRef, where("email", "==", tx.receiverId));
+         const usersSnap = await getDocs(qEmail);
+         let actualReceiverUid = tx.receiverId;
+         
+         if (!usersSnap.empty) {
+           actualReceiverUid = usersSnap.docs[0].id;
+         }
+
+         await updateDoc(doc(db, "users", actualReceiverUid), {
+            walletBalance: increment(tx.amount)
+         });
+         toast.success("تم إرسال الرصيد للمستلم بنجاح");
+      } else if (newStatus === "مرفوض" && tx.status !== "مرفوض" && tx.type !== "deposit" && !!tx.amount) {
          await updateDoc(doc(db, "users", tx.userId), {
             walletBalance: increment(tx.amount)
          });
-         toast.success("تم التحديث وإرجاع الرصيد للمستخدم");
+         toast.success("تم التحديث وإرجاع الرصيد للمرسل");
       } else {
          toast.success("تم تحديث الحالة بنجاح");
       }
@@ -56,7 +73,7 @@ export function AdminTransactions() {
         setSelectedTx({ ...selectedTx, status: newStatus });
       }
     } catch (error) {
-      toast.error("حدث خطأ أثناء التحديث");
+      toast.error("حدث خطأ أثناء التحديث. قد يكون المعرف خاطئاً.");
       console.error(error);
     }
   };

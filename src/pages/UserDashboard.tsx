@@ -65,6 +65,12 @@ export function UserDashboard() {
   const [depositAmount, setDepositAmount] = useState("");
   const [depositProof, setDepositProof] = useState<string | null>(null);
   const [isDepositing, setIsDepositing] = useState(false);
+
+  // Transfer State
+  const [isTransferModalOpen, setIsTransferModalOpen] = useState(false);
+  const [transferReceiverId, setTransferReceiverId] = useState("");
+  const [transferAmount, setTransferAmount] = useState("");
+  const [isTransferring, setIsTransferring] = useState(false);
   const navigate = useNavigate();
   const [expandedSections, setExpandedSections] = useState<Record<string, boolean>>({
     "personal-info": true
@@ -178,6 +184,55 @@ export function UserDashboard() {
     });
     return () => unsubscribe();
   }, []);
+
+  const handleTransferSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user || !transferReceiverId || !transferAmount) {
+      toast.error("يرجى إكمال جميع الحقول");
+      return;
+    }
+    
+    if (Number(transferAmount) <= 0) {
+       toast.error("المبلغ يجب أن يكون أكبر من صفر");
+       return;
+    }
+
+    if (Number(transferAmount) > (profileData.walletBalance || 0)) {
+       toast.error("رصيدك الحالي غير كافٍ لإتمام التحويل");
+       return;
+    }
+
+    setIsTransferring(true);
+    try {
+      const txRef = doc(collection(db, "transactions"));
+      await setDoc(txRef, {
+        userId: user.uid,
+        userEmail: user.email,
+        receiverId: transferReceiverId, // Or email
+        amount: Number(transferAmount),
+        type: "p2p_transfer",
+        status: "pending_approval",
+        description: `طلب تحويل إلى ${transferReceiverId}`,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp()
+      });
+      // Deduct balance manually from client side so it reflects instantly as "held"
+      // Admin will either approve (and add to receiver) or reject (and refund sender).
+      await updateDoc(doc(db, "users", user.uid), {
+        walletBalance: increment(-Number(transferAmount)),
+        updatedAt: serverTimestamp()
+      });
+
+      toast.success("تم إرسال طلب التحويل بنجاح وسوف يتم معالجته من قبل المشرف قريباً");
+      setIsTransferModalOpen(false);
+      setTransferAmount("");
+      setTransferReceiverId("");
+    } catch (error) {
+      handleFirestoreError(error, OperationType.WRITE, "transactions");
+    } finally {
+      setIsTransferring(false);
+    }
+  };
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -820,13 +875,22 @@ export function UserDashboard() {
                                   </motion.div>
                                 </div>
 
-                                <button 
-                                  onClick={() => setIsDepositModalOpen(true)}
-                                  className="w-full max-w-[380px] py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl text-white font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
-                                >
-                                  <CreditCard size={20} />
-                                  شحن المحفظة
-                                </button>
+                                <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-[380px]">
+                                  <button 
+                                    onClick={() => setIsDepositModalOpen(true)}
+                                    className="w-full py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl text-white font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+                                  >
+                                    <CreditCard size={20} />
+                                    شحن المحفظة
+                                  </button>
+                                  <button 
+                                    onClick={() => setIsTransferModalOpen(true)}
+                                    className="w-full py-4 bg-slate-800 hover:bg-slate-900 rounded-2xl text-white font-bold transition-all shadow-lg flex items-center justify-center gap-2"
+                                  >
+                                    <Send size={20} />
+                                    تحويل رصيد
+                                  </button>
+                                </div>
                               </div>
 
                               <div>
@@ -1475,13 +1539,22 @@ export function UserDashboard() {
                         </motion.div>
                       </div>
 
-                      <button 
-                        onClick={() => setIsDepositModalOpen(true)}
-                        className="w-full max-w-[380px] py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl text-white font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
-                      >
-                        <CreditCard size={20} />
-                        شحن المحفظة
-                      </button>
+                      <div className="flex flex-col sm:flex-row items-center gap-3 w-full max-w-[380px]">
+                        <button 
+                          onClick={() => setIsDepositModalOpen(true)}
+                          className="w-full py-4 bg-indigo-500 hover:bg-indigo-600 rounded-2xl text-white font-bold transition-all shadow-lg shadow-indigo-500/25 flex items-center justify-center gap-2"
+                        >
+                          <CreditCard size={20} />
+                          شحن المحفظة
+                        </button>
+                        <button 
+                          onClick={() => setIsTransferModalOpen(true)}
+                          className="w-full py-4 bg-slate-800 hover:bg-slate-900 rounded-2xl text-white font-bold transition-all shadow-lg flex items-center justify-center gap-2"
+                        >
+                          <Send size={20} />
+                          تحويل رصيد
+                        </button>
+                      </div>
                     </div>
 
                     <div>
@@ -1575,6 +1648,62 @@ export function UserDashboard() {
                 )}
 
 
+
+                    <AnimatePresence>
+                      {isTransferModalOpen && (
+                        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+                           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => !isTransferring && setIsTransferModalOpen(false)} className="absolute inset-0 bg-slate-900/60 backdrop-blur-md" />
+                           <motion.div initial={{ opacity: 0, scale: 0.9, y: 20 }} animate={{ opacity: 1, scale: 1, y: 0 }} exit={{ opacity: 0, scale: 0.9, y: 20 }} className="relative w-full max-w-md bg-white dark:bg-slate-800 rounded-[40px] shadow-2xl p-8 max-h-[90vh] overflow-y-auto">
+                              <div className="text-center mb-8">
+                                <div className="w-16 h-16 bg-slate-800 dark:bg-indigo-500 rounded-2xl flex items-center justify-center text-white mx-auto mb-4 shadow-lg">
+                                   <Send size={32} />
+                                </div>
+                                <h3 className="text-2xl font-bold">تحويل رصيد <span className="text-[10px] bg-yellow-100 text-yellow-800 px-2 py-0.5 rounded-full align-top">P2P</span></h3>
+                                <p className="text-slate-500 mt-2 text-sm">قم بإدخال بريد أو معرف المستلم وقيمة التحويل</p>
+                              </div>
+
+                              <form onSubmit={handleTransferSubmit} className="space-y-6">
+                                 <div className="space-y-3">
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">البريد الإلكتروني للطرف الآخر</label>
+                                    <input 
+                                      type="text" 
+                                      required
+                                      value={transferReceiverId} 
+                                      onChange={(e) => setTransferReceiverId(e.target.value)}
+                                      placeholder="example@gmail.com أو المعرف"
+                                      className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 focus:outline-none focus:border-indigo-500 transition-colors"
+                                    />
+                                    <p className="text-[11px] text-slate-500">ملاحظة: تأكد بشدة من صحة بيانات المستلم.</p>
+                                 </div>
+
+                                 <div className="space-y-3">
+                                    <label className="block text-sm font-bold text-slate-700 dark:text-slate-300">المبلغ المراد تحويله (ل.س)</label>
+                                    <input 
+                                      type="number"
+                                      required
+                                      min="1"
+                                      value={transferAmount} 
+                                      onChange={(e) => setTransferAmount(e.target.value)}
+                                      placeholder="مثال: 50000"
+                                      className="w-full bg-slate-50 dark:bg-slate-900/50 border border-slate-200 dark:border-slate-700 rounded-2xl px-5 py-4 focus:outline-none focus:border-indigo-500 transition-colors font-en dir-ltr text-right"
+                                    />
+                                 </div>
+
+                                 <div className="flex gap-4 pt-4 border-t border-slate-100 dark:border-slate-700">
+                                    <button 
+                                      type="submit"
+                                      disabled={isTransferring || !transferReceiverId || !transferAmount}
+                                      className="flex-[2] bg-slate-800 hover:bg-slate-900 dark:bg-indigo-600 dark:hover:bg-indigo-700 text-white font-bold py-4 rounded-3xl transition-all shadow-xl active:scale-95 disabled:opacity-50"
+                                    >
+                                       {isTransferring ? <Loader2 className="animate-spin mx-auto" /> : "إرسال طلب التحويل"}
+                                    </button>
+                                    <button type="button" onClick={() => setIsTransferModalOpen(false)} className="flex-1 bg-slate-100 dark:bg-slate-700 hover:bg-slate-200 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 font-bold py-4 rounded-3xl transition-all active:scale-95">إلغاء</button>
+                                 </div>
+                              </form>
+                           </motion.div>
+                        </div>
+                      )}
+                    </AnimatePresence>
 
                     <AnimatePresence>
                       {isDepositModalOpen && (
